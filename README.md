@@ -48,7 +48,7 @@ Thank you to everyone who takes an interest in x86-compatible hardware and its e
 
 ## License and credits
 
-Pico-386 project code is copyright © 2025 xrip under the [MIT License](LICENSE). Third-party code has its own copyright and license terms. The MIT license for the project does not cover the DOS system, programs on the floppy, or third-party sound banks.
+Pico-386 project code is copyright © 2026 xrip under the [MIT License](LICENSE). Third-party code has its own copyright and license terms. The MIT license for the project does not cover the DOS system, programs on the floppy, or third-party sound banks.
 
 | Code | Copyright or credit | License or source notice |
 | --- | --- | --- |
