@@ -40,6 +40,12 @@ cmake --preset m2p2
 cmake --build --preset m2p2
 ```
 
+## Thanks to the x86 emulation community
+
+Our work on PC peripherals draws on many open-source emulators and chip datasheets. Over the years we tried ideas from so many places that we can no longer trace every part to a single source. The credits below name the sources we can still identify.
+
+Thank you to everyone who takes an interest in x86-compatible hardware and its emulation. Every shared test, note, and piece of code helps others understand how these machines work.
+
 ## License and credits
 
 Pico-386 project code is copyright © 2025 xrip under the [MIT License](LICENSE). Third-party code has its own copyright and license terms. The MIT license for the project does not cover the DOS system, programs on the floppy, or third-party sound banks.
