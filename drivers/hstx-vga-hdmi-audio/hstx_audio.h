@@ -13,4 +13,5 @@ void hstx_audio_write(int16_t left, int16_t right);
 
 // For hstx_video.c.
 void hstx_audio_init(void);
+void hstx_audio_deinit(void);
 const uint32_t *hstx_audio_island(unsigned line); // the data island of output line `line` (0 = first blank line)

@@ -158,6 +158,7 @@ else ()
     add_subdirectory(drivers/fatfs)
     add_subdirectory(drivers/sdcard)
     add_subdirectory(drivers/nespad)
+    add_subdirectory(drivers/audio)
     add_subdirectory(drivers/flash-config)
     add_subdirectory(drivers/graphics)
     add_subdirectory(drivers/hstx-vga-hdmi-audio)
@@ -168,7 +169,7 @@ else ()
     # LIBRARIES
     # =========================
     target_link_libraries(${PROJECT_NAME} PRIVATE
-            ps2 sdcard graphics hstx-vga-hdmi-audio nespad flash-config
+            ps2 sdcard graphics audio hstx-vga-hdmi-audio nespad flash-config
             pico_runtime pico_stdlib pico_multicore
             hardware_dma hardware_pio hardware_i2c hardware_exception
             hardware_interp hardware_timer hardware_clocks hardware_pwm hardware_flash

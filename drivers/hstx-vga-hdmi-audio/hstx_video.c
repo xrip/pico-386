@@ -214,7 +214,7 @@ static bool __time_critical_func(hstx_start_pipeline)(void) {
     expected_completed_slot = 0;
     /* Lines 0 and 1 both send START_PACKET; the next spare write goes to the other one. */
     hstx_packet_init(START_PACKET, false, false);
-    hstx_packet_set_island(START_PACKET, hstx_audio_island(0));
+    if (!vga) hstx_packet_set_island(START_PACKET, hstx_audio_island(0));
     spare_slot = 0;
     for (uint slot = 0; slot < 2; ++slot) {
         dma_channel_hw_t *channel = &dma_hw->ch[dma_channels[slot]];
@@ -262,8 +262,7 @@ static void __time_critical_func(hstx_queue_next_transfer)(uint slot) {
             if (vsync_callback != NULL) vsync_callback();
         }
     }
-    const uint32_t *island = hstx_audio_island(next_vline); // VGA too: the samples go at the HDMI rate
-    if (!vga) hstx_packet_set_island(packet, island);
+    if (!vga) hstx_packet_set_island(packet, hstx_audio_island(next_vline));
     hstx_arm_line(slot, packet, vsync);
     if (++next_vline == V_TOTAL) next_vline = 0;
 }
@@ -374,7 +373,7 @@ bool hstx_video_init(void) {
     vga = output == HSTX_OUTPUT_AUTO ? hstx_vga_detected() : output == HSTX_OUTPUT_VGA;
     hstx_vga_blank_init(vga_blank[0], false);
     hstx_vga_blank_init(vga_blank[1], true);
-    hstx_audio_init();
+    if (!vga) hstx_audio_init();
     owner_core = get_core_num();
     previous_irq_priority = irq_get_priority(DMA_IRQ_1);
     irq_was_enabled = irq_is_enabled(DMA_IRQ_1);
@@ -455,6 +454,7 @@ void hstx_video_deinit(void) {
     initialized = false;
     irq_set_enabled(DMA_IRQ_1, irq_was_enabled);
     restore_interrupts(interrupts);
+    if (!vga) hstx_audio_deinit();
 }
 
 bool hstx_video_is_running(void) {

@@ -41,11 +41,11 @@ cmake --preset m2p2
 cmake --build --preset m2p2
 ```
 
-Output: `bin/rp2350-arm-s/Release/286-P166-C500MHz.uf2`. There are no display, audio or memory options. Other configurations (RP2040, VGA, TFT, NTSC, PIO HDMI, PWM/I2S/hardware sound, SPI PSRAM, swap file) are no longer supported; CMake stops for any platform other than `rp2350-arm-s` and `host`.
+Output: `bin/rp2350-arm-s/Release/286-P166-C500MHz.uf2`. The same firmware supports HSTX HDMI and VGA.
 
 Notes on the M2P2 firmware:
 - **Clocks:** SYS runs at 500 MHz (1.60 V). HSTX takes its 126 MHz clock from a separate PLL_USB, so USB and ADC are stopped. USB debugging and USB-triggered BOOTSEL are not available; use the board's BOOTSEL button for the next flash.
-- **Sound:** 44.1 kHz 16-bit stereo over HDMI data islands. The HDMI clock sets the rate.
+- **Sound:** HDMI carries 44.1 kHz stereo in data islands. With VGA, startup probes the load on GPIO9 and GPIO10 to select I2S (DATA 9, BCLK 10, LRCLK 11) or stereo PWM (right 10, left 11). Floating inputs, including an empty socket, can give the I2S signature.
 - **PSRAM:** at least 8 MB onboard QMI PSRAM is required; the firmware stops at boot without it. Conventional RAM, UMB, HMA and XMS all live in PSRAM.
 - **SRAM:** code, lookup tables and palettes use normal SRAM. Scratch X and Y are reserved for separate 4 KB core stacks, with hardware stack-limit checks. The linker rejects other scratch allocations.
 - **OPL2:** the OPL2 assembly runs from normal SRAM (2 KB). Both flash and SRAM versions have faulted during HDMI interrupts at 504 MHz; the SRAM change is not a complete fix. See the [OPL2 board record](docs/board-records/hstx-opl-sram.md).

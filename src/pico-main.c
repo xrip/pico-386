@@ -36,6 +36,7 @@ FATFS fs;
 struct semaphore vga_start_semaphore;
 int cursor_blink_state = 0;
 
+#include "audio.h"
 #include "hstx_audio.h"
 #include "hstx_video.h"
 _Static_assert(SOUND_FREQUENCY == HSTX_AUDIO_SAMPLE_RATE, "HDMI audio runs at the emulator's sample rate");
@@ -218,7 +219,9 @@ void __time_critical_func() second_core(void) {
         graphics_set_palette(i, vga_palette[i]);
     }
 
-    // Initialize sound hardware
+    const bool vga_audio = hstx_video_is_vga();
+    if (vga_audio) vga_audio_init(SOUND_FREQUENCY);
+
     emu8950_opl = OPL_new(3579552, SOUND_FREQUENCY);
 
 
@@ -260,11 +263,12 @@ void __time_critical_func() second_core(void) {
         }
 
         // Audio output at configured sample rate
-        if (hstx_audio_has_room()) { // the HDMI clock sets the rate
+        if (vga_audio ? vga_audio_has_room() : hstx_audio_has_room()) {
             int16_t samples[2];
             get_sound_sample(last_dss_sample, samples);
 
-            hstx_audio_write(samples[0], samples[1]);
+            if (vga_audio) vga_audio_write(samples[0], samples[1]);
+            else hstx_audio_write(samples[0], samples[1]);
         }
 
         // Video frame rendering (~60Hz)
