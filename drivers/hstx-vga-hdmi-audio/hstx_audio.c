@@ -20,6 +20,7 @@ enum {
 };
 
 static struct {
+    uint16_t ter_c4[16]; // Indexed directly from the state base in the scanline IRQ.
     // Written by the sound loop and read by the HSTX IRQ, both on core 1.
     uint32_t buffer[BUFFER_SIZE]; // left | right << 16
     volatile uint32_t buffer_head, buffer_tail; // free-running counts
@@ -29,7 +30,6 @@ static struct {
     uint32_t audio_template[2][HSTX_DI_WORDS];
     uint32_t packets_in_block;
     uint32_t sample_credit; // in 1/V_TOTAL samples
-    uint16_t ter_c4[16];
     uint8_t bch_table[256];
 } *hdmi;
 
@@ -93,9 +93,14 @@ static void __time_critical_func(make_audio_packet)(void) {
         d[4] = (uint8_t)(sample >> 16);
         d[5] = (uint8_t)(sample >> 24);
         d[6] = (uint8_t)(parity8(d[1] ^ d[2]) << 3 | parity8(d[4] ^ d[5]) << 7);
-        uint8_t v = hdmi->bch_table[0];
-        for (int i = 1; i < 7; i++) v = hdmi->bch_table[d[i] ^ v];
-        d[7] = v;
+        const uint8_t *bch = hdmi->bch_table;
+        // Bytes 0 and 3 are zero in the 16-bit stereo packet.
+        uint8_t v = bch[d[1]];
+        v = bch[d[2] ^ v];
+        v = bch[v];
+        v = bch[d[4] ^ v];
+        v = bch[d[5] ^ v];
+        d[7] = bch[d[6] ^ v];
     }
 
     const uint32_t *t = hdmi->audio_template[hdmi->packets_in_block == 0];
