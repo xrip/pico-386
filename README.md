@@ -1,335 +1,64 @@
-# 🕹️ Pico-386 Project
+# Pico-386
 
-The Pico-386 project is an endeavor to emulate a classic PC system, reminiscent of late 80s and early 90s computers, on the Raspberry Pi Pico 2 (RP2350 microcontroller). It aims to provide a lightweight and educational platform for experiencing retro computing and understanding low-level system emulation. 🖥️✨
+Pico-386 runs DOS games and programs on a Raspberry Pi Pico 2. Its CPU core began with Mike Chambers' Fake86. After many rounds of work on that core, it now emulates an Intel 386SX.
 
-## ⭐ Key Features
+DOS gets a keyboard, mouse, disk drives, color graphics, and stereo sound. Dune II and The Secret of Monkey Island have run on the board. [Game test record](docs/board-records/irq-entry-isolation.md)
 
-*   **🧠 8086/8088/80186/286 CPU Emulation:** At its core, the project emulates an Intel cpu up to 286 family.
-*   **🌐 Cross-platform:** Can be built for the RP2350, Windows, and Linux.
-*   **🔌 Retro Peripheral Emulation:** Includes support for common peripherals from the era.
-*   **🎨 Text and Graphics Modes:** Supports various display modes common in early PCs.
-*   **🔊 Sound Emulation:** Recreates sound capabilities of classic sound cards.
-*   **🍓 Designed for Raspberry Pi Pico:** Optimized for the RP2350 with HDMI and onboard PSRAM.
+**Tested and recommended board:** [Frank M2 v2.05 for Murmulator 2](https://github.com/rh1tech/frank/releases/tag/frank_m2_2_05). The M2P2 firmware uses an RP2350, 16 MB of flash, and 8 MB of QMI PSRAM.
 
-## 🎮 Supported Hardware Emulations
+## First boot
 
-### 🧠 CPU Emulation
-*   Intel 8086/8088/80186/286 processor family
+1. Build the firmware with the commands below. The default file is `bin/rp2350-arm-s/Release/m2p2-386-C500-P125MHz.uf2`.
+2. Hold **BOOTSEL** as you connect the Pico to USB. Copy the UF2 to the USB drive. The board starts when the copy is complete.
+3. For a first test, start with the SD card out. The board boots DR DOS from a read-only 360 KB floppy in flash. To use your own boot disk, put its image on the SD card as `/XT/fdd0.img`. The built-in disk is also available if this file is missing.
 
-### 🎵 Sound Card Emulations
-*   **📢 PC Speaker (System Beeper):** Authentic emulation of the original PC's internal speaker system
-*   **🎚️ Covox Speech Thing:** Compatible emulation of the simple parallel port DAC
-*   **🎭 Disney Sound Source (DSS):** Emulation of the popular parallel port digital audio device
-*   **🎹 Adlib / Sound Blaster (OPL2 FM Synthesis):** High-quality emulation of the Yamaha OPL2 chipset for classic FM music and sound effects.
-*   **🔊 Sound Blaster Pro (Digital Audio):** Emulation of a Sound Blaster Pro 2 (DSP 3.02): 8-bit mono and stereo DMA playback, including high-speed DMA, and the SB Pro mixer. Use `SET BLASTER=A220 I5 D1 T4`. FM music uses the OPL2 above, also at 228h/229h.
-*   **🎼 MPU-401 (MIDI Interface with General MIDI Synthesizer):** Provides a MIDI interface and includes an integrated General MIDI (GM) software synthesizer, allowing playback of GM scores without external MIDI hardware. This is a key feature for many later DOS games.
-*   **📢 Tandy 3-voice / PCjr (SN76489 PSG):** Emulation of the Texas Instruments SN76489 Programmable Sound Generator.
-*   **🎮 Creative Music System / Game Blaster (CMS/GameBlaster):** Emulation of the dual Philips SAA1099 based sound card.
+## What you get
 
-### 🖼️ Graphics Card Emulations
+- **One firmware for two screens.** The board checks for HDMI or VGA at boot. HDMI carries picture and sound on one cable. With VGA, the board checks for I2S or PWM sound.
+- **DOS disks as files.** Put floppy images in `/XT/fdd0.img` and `/XT/fdd1.img`, and hard disk images in `/XT/hdd.img` and `/XT/hdd2.img`. The SD driver uses DMA for disk transfers.
+- **Room for larger programs.** The CPU has 32-bit instructions, protected mode, paging, and virtual 8086 mode. DOS programs can use XMS memory.
+- **A desktop build for tests.** The same emulator core runs on Windows and Linux. Pico-386 has its own desktop display code. The desktop build is independent of the Pico SDK.
 
-#### 📝 Text Modes (Common to All Graphics Cards)
-All graphics card emulations support standard text display modes for character-based applications:
-- 16 foreground colors with 8 background colors
-- Full color attribute support including blinking text
+## Hardware seen by DOS
 
-**📝 Standard Text Modes:**
-*   **80×25 Text Mode:** Standard 80 columns by 25 rows character display
-*   **40×25 Text Mode:** Lower resolution 40 columns by 25 rows display
+| Part | Emulated hardware |
+| --- | --- |
+| CPU and memory | Intel 386SX, x87 floating-point unit, conventional memory, upper memory blocks, HMA and XMS |
+| Screen | Text, Hercules, CGA, Tandy, EGA and VGA, including Mode X. [Video modes](VIDEO_MODES.md) |
+| Disks | Two floppy drives and two hard disks through BIOS disk services |
+| Input | PC keyboard, Microsoft serial mouse on COM1, game-port joystick |
+| Sound | PC speaker, Tandy SN76489, AdLib OPL2, Sound Blaster Pro 2, Game Blaster, Covox Speech Thing and Disney Sound Source |
+| Music | MPU-401 MIDI and General MIDI synthesis, with an optional GM.DLS sound bank |
+| System | 8253 interval timer, 8259 interrupt controller, 8237 DMA controller and CMOS clock |
 
-**🚀 Advanced CGA Text Modes (8088 MPH Demo Techniques):**
-*   **🎨 160×100×16 Text Mode:** Ultra-low resolution high-color text mode
-    - Revolutionary technique showcased in the famous "8088 MPH" demo by Hornet
-    - 16 simultaneous colors from CGA palette in text mode
-    - Achieved through advanced CGA register manipulation and timing tricks
-    - Demonstrates the hidden capabilities of original CGA hardware
-*   **🌈 160×200×16 Text Mode:** Enhanced color text mode
-    - Extended version of the 8088 MPH technique with double vertical resolution
-    - Full 16-color support in what appears to be a text mode
-    - Pushes CGA hardware beyond its original specifications
-    - Compatible with software that uses advanced CGA programming techniques
+## Build
 
-#### 🎨 CGA (Color Graphics Adapter)
-The CGA emulation provides authentic IBM Color Graphics Adapter functionality, supporting the classic early PC graphics modes:
+With the Pico SDK, Arm GCC, CMake and Ninja in place, run these commands from the project directory. For setup, desktop builds and MIDI options, see the [build guide](BUILDING.md).
 
-**🎮 Graphics Modes:**
-*   **🌈 320×200×4 Colors:** Standard CGA graphics mode with selectable color palettes
-*   **⚫⚪ 640×200×2 Colors:** High-resolution monochrome mode (typically black and white)
-*   **📺 Composite Color Mode (160×200×16):** Emulates the artifact colors produced by CGA when connected to composite monitors, creating additional color combinations through NTSC color bleeding effects
-
-#### 📊 HGC (Hercules Graphics Card)
-The Hercules Graphics Card emulation recreates the popular monochrome high-resolution graphics standard:
-
-**🖥️ Graphics Mode:**
-*   **⚫⚪ 720×348×2 Colors:** High-resolution monochrome graphics mode
-    
-#### 🖥️ EGA (Enhanced Graphics Adapter)
-The Enhanced Graphics Adapter emulation provides IBM EGA compatibility with full 16-color support:
-
-**🚀 Enhanced Graphics Modes:**
-*   **🎨 320×200×16 Colors:** EGA mode 0x0D with planar memory access
-*   **🌈 640×200×16 Colors:** EGA mode 0x0E high-resolution 16-color mode
-*   **✨ 640×350×16 Colors:** EGA mode 0x10 professional graphics mode
-
-#### 🖥️ TGA (Tandy Graphics Adapter)
-The Tandy Graphics Adapter emulation recreates the enhanced graphics capabilities of Tandy 1000 series computers:
-
-**🚀 Enhanced Graphics Modes:**
-*   **🎨 160×200×16 Colors:** Low-resolution mode with full 16-color palette
-*   **🌈 320×200×16 Colors:** Medium-resolution mode with 16 simultaneous colors from a larger palette
-*   **✨ 640×200×16 Colors:** High-resolution mode with 16-color support
-
-#### 🖼️ VGA (Video Graphics Array)
-The VGA emulation provides comprehensive Video Graphics Array support with planar memory architecture and multiple advanced modes:
-
-**📊 Standard VGA Modes:**
-*   **🎮 320×200×256 Colors:** Mode 13h with chain4 memory access
-*   **🖥️ 640×480×16 Colors:** Standard VGA high-resolution mode (Mode 12h)
-*   **🖥️ 640×480×2 Colors:** Monochrome VGA mode (Mode 11h)
-*   **📝 Text modes:** 80×25 and 80×50 with enhanced character sets
-
-**🔧 VGA Technical Features:**
-*   **Planar Memory Layout:** 256KB video memory organized as 4 color planes (0xP3P2P1P0 format)
-*   **32-bit Latch System:** Hardware-accurate latch emulation for planar operations
-*   **Chain4 Mode Support:** Proper VGA chain4 mode handling for 256-color modes
-*   **Hardware Registers:** Full VGA register compatibility including sequencer and graphics controllers
-
-## 💾 Storage: Disk Images and Host Access
-
-The emulator supports two primary types of storage: virtual disk images for standard DOS drives (A:, B:, C:, D:) and direct access to the host filesystem via a mapped network drive (H:).
-
-### Virtual Floppy and Hard Disks (Drives A:, B:, C:, D:)
-
-The emulator supports up to two floppy disk drives (A: and B:) and up to two hard disk drives (C: and D:). Disk images are stored on the SD card.
-
-The emulator expects the following file paths and names for the disk images:
-
-*   **Floppy Drive 0 (A:):** `\\XT\\fdd0.img`
-*   **Floppy Drive 1 (B:):** `\\XT\\fdd1.img`
-*   **Hard Drive 0 (C:):** `\\XT\\hdd.img`
-*   **Hard Drive 1 (D:):** `\\XT\\hdd2.img`
-
-**Important Notes:**
-
-*   The disk type (floppy or hard disk) is determined by the drive number it is assigned to in the emulator, not by the filename itself.
-*   The emulator automatically determines the disk geometry (cylinders, heads, sectors) based on the size of the image file. Ensure your disk images have standard sizes for floppy disks (e.g., 360KB, 720KB, 1.2MB, 1.44MB) for proper detection. For hard disks, the geometry is calculated based on a standard CHS (Cylinder/Head/Sector) layout.
-
-### Host Filesystem Access (Drive H:)
-
-For seamless file exchange, the emulator can map a directory from the host filesystem and present it as drive **H:** in the DOS environment. This feature is implemented through the standard **DOS network redirector interface (INT 2Fh, Function 11h)**.
-
-This is ideal for development, allowing you to edit files on your host machine and access them instantly within the emulator without modifying disk images.
-
-#### How It Works
-
-The emulator intercepts file operations for drive H: and translates them into commands for the host's filesystem. To enable this drive, you must run the `MAPDRIVE.COM` utility within the emulator.
-
-The mapped directory depends on the platform:
-
--   **On Windows builds:** Drive H: maps to the `C:\\FASM` directory by default.
--   **On Linux builds:** Drive H: maps to the `/tmp` directory by default.
--   **On the RP2350 firmware:** Drive H: maps to the `//XT//` directory on the SD card.
-
-#### `MAPDRIVE.COM` Utility
-
-The `tools/mapdrive.asm` source file can be assembled into `MAPDRIVE.COM` using FASM. This utility registers drive H: with the DOS kernel as a network drive.
-
-**Prerequisite:** Before using `MAPDRIVE.COM`, ensure your `CONFIG.SYS` file contains the line `LASTDRIVE=H` (or higher, e.g., `LASTDRIVE=Z`). This tells DOS to allocate space for drive letters up to H:, allowing `MAPDRIVE.COM` to successfully create the new drive.
-
-To use it:
-
-1.  Assemble `mapdrive.asm` to `mapdrive.com`.
-2.  Copy `mapdrive.com` to your boot disk image (e.g., `fdd0.img` or `hdd.img`).
-3.  Run `MAPDRIVE.COM` from the DOS command line.
-4.  Add `MAPDRIVE.COM` to your `AUTOEXEC.BAT` to automatically map the drive on boot.
-
-
-## 🔧 Hardware Configuration
-
-Pico-386 supports one board configuration: an **RP2350 (Raspberry Pi Pico 2 class) M2P2 / Murmulator 2 board** with HSTX HDMI video and HDMI audio, or HSTX VGA video, and 8 MB of onboard QMI PSRAM. 🍓
-
-### 🎛️ Supported Components
-*   ⌨️ PS/2 keyboard and mouse
-*   💾 SD card for storage
-*   📺 HDMI video through the RP2350 HSTX block, with the sound sent over HDMI
-*   🧠 8 MB onboard QMI PSRAM (required: the firmware stops at boot without it)
-*   🎮 NES gamepad
-
-### 🛠️ Development Platform
-*   This project uses the [MURMULATOR dev board](https://murmulator.ru) (M2P2) as its hardware base. 🎯
-
-### 🔌 Pinout
-The pins are set in `CMakeLists.txt`.
-
-| Peripheral        | GPIO Pin(s)                     | Notes                              |
-|-------------------|---------------------------------|------------------------------------|
-| **HDMI Output**   | 12–19                           | RP2350 HSTX pins                   |
-| **SD Card**       | CS: 5, SCK: 6, MOSI: 7, MISO: 4 | SPI0                               |
-| **PS/2 Keyboard** | CLK: 2, DATA: 3                 |                                    |
-| **PS/2 Mouse**    | CLK: 0, DATA: 1                 |                                    |
-| **NES Gamepad**   | CLK: 20, DATA: 21, LAT: 26      | Used for mouse emulation if needed |
-| **PSRAM**         | QMI CS1                         | Onboard, memory-mapped             |
-
-### ⚙️ Memory and Sound
-*   **Conventional RAM:** 640 KB, in PSRAM.
-*   **XMS:** 7 MB, plus the HMA and 240 KB of UMBs, all in PSRAM (no EMS board: use EMM386 for EMS).
-*   **Sound:** 44,100 Hz stereo, sent over HDMI. The HDMI clock sets the rate.
-
-## 🏛️ Platform Architecture
-The emulator uses different architectures depending on the target platform to best utilize the available resources.
-
-### Raspberry Pi Pico 2 (Dual-Core)
-*   **Core 0:** Runs the main CPU emulation loop (`exec86`) and handles user input from the PS/2 keyboard and NES gamepad.
-*   **Core 1:** Dedicated to real-time, time-critical tasks. It runs an infinite loop that manages:
-    *   Video rendering (at ~60Hz).
-    *   Audio sample generation and output.
-    *   PIT timer interrupts for the emulator (at ~18.2Hz).
-
-This division of labor ensures that the demanding CPU emulation does not interfere with smooth video and audio output.
-
-### Windows & Linux (Multi-threaded)
-The host builds (for Windows and Linux) are multi-threaded to separate tasks.
-*   **Main Thread:** Runs the main CPU emulation loop (`exec86`) and handles the window and its events via the MiniFB library.
-*   **Ticks Thread:** A dedicated thread that acts as the system's clock. It uses high-resolution timers (`QueryPerformanceCounter` on Windows, `clock_gettime` on Linux) to trigger events like PIT timer interrupts, rendering updates, and audio sample generation at the correct frequencies.
-*   **Sound Thread:** A separate thread responsible for communicating with the host operating system's audio API (WaveOut on Windows, a custom backend on Linux) to play the generated sound without blocking the other threads.
-
-This architecture allows for accurate timing and responsive I/O on a non-real-time desktop operating system.
-
-## 🔨 Building and Getting Started
-
-### 📋 Prerequisites
-
-#### For the RP2350 firmware:
-*   **Pico SDK:** Install the [Raspberry Pi Pico SDK](https://github.com/raspberrypi/pico-sdk) and set `PICO_SDK_PATH`
-*   **CMake:** Version 3.22 or higher, and Ninja
-*   **ARM GCC Toolchain:** For cross-compilation to ARM Cortex-M33
-
-#### For Windows host builds:
-*   **CMake:** Version 3.22 or higher
-*   **GCC (MinGW):** C++20 compatible compiler
-
-#### For Linux host builds:
-*   **CMake:** Version 3.22 or higher
-*   **GCC/Clang:** C++20 compatible compiler (GCC 11+ or Clang 13+)
-*   **X11 development libraries:** Required for graphics output
-*   **Threading support:** pthread library (usually included with GCC)
-
-### 🚀 Build Commands
-
-#### RP2350 firmware:
-```bash
+```sh
 cmake --preset m2p2
 cmake --build --preset m2p2
 ```
-There are no display, audio or memory build options: one firmware drives HDMI with HDMI audio, or VGA (no sound yet). It tests the HSTX pins at boot; `VIDEO=VGA` or `VIDEO=HDMI` in `config.286` sets it. A VGA board needs its monitor connected at boot to be found. `-DMIDI_GM_DLS=ON` selects the GM.DLS wavetable MIDI engine (see `BUILDING.md`).
 
-#### Linux Host Build:
-```bash
-sudo apt install build-essential cmake git libx11-dev
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DPICO_PLATFORM=host
-cmake --build build -j
-```
+## License and credits
 
-#### Windows Host Build:
-```bash
-cmake -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DPICO_PLATFORM=host
-cmake --build build -j
-```
+Pico-386 project code is copyright © 2025 xrip under the [MIT License](LICENSE). Third-party code has its own copyright and license terms. The MIT license for the project does not cover the DOS system, programs on the floppy, or third-party sound banks.
 
-### 📦 Build Outputs
+| Code | Copyright or credit | License or source notice |
+| --- | --- | --- |
+| Original Fake86 CPU core | Mike Chambers | [Fake86 project](https://sourceforge.net/projects/fake86/) |
+| Raspberry Pi Pico SDK and I2S PIO code | © 2020 Raspberry Pi (Trading) Ltd. and SDK contributors | [SDK license](https://github.com/raspberrypi/pico-sdk/blob/master/LICENSE.TXT), [BSD-3-Clause PIO notice](drivers/audio/audio_i2s.pio) |
+| FatFs and its Unicode tables | © 2021 ChaN (FatFs), © 2014 ChaN (Unicode tables) | [FatFs terms](drivers/fatfs/ff.c), [Unicode notice](drivers/fatfs/ffunicode.c) |
+| FatFs utilities | © 2021 Carl John Kugler III | [Apache-2.0](drivers/fatfs/f_util.c) |
+| Pico SD card bindings | © 2020–2021 Elehobica | [BSD-2-Clause](drivers/sdcard/LICENSE) |
+| emu8950, used for OPL2 sound | © 2001–2020 Mitsutaka Okazaki, © 2021–2022 Graham Sanderson | [MIT](src/emu8950/emu8950.c) |
+| emu76489, used for Tandy sound | Mitsutaka Okazaki, with Game Gear stereo work by RuRuRu | [Source credit](src/emulator/audio/sn76489.c.inl), [upstream MIT notice](https://github.com/digital-sound-antiques/emu76489/blob/master/LICENSE) |
+| XTulator Sound Blaster code | © 2020 Mike Chambers | [GPL-2.0-or-later](src/emulator/audio/sound_blaster.c.inl) |
+| Blink floating-point code, via PCulator | © 2022 Justine Alexandra Roberts Tunney | [ISC](src/emulator/fpu.c) |
+| I2S audio driver | © 2022 Vincent Mistler | [MIT](drivers/audio/audio.c) |
+| HDMI packet code from pico_hdmi and frank-quake2 | fliperama86, rh1tech and DnCraptor | [Source credit](drivers/hstx-vga-hdmi-audio/hstx_video.c), [Unlicense](drivers/hstx-vga-hdmi-audio/LICENSE.pico_hdmi) |
+| VGA detection | wbcbz7 | [MIT source credit](drivers/hstx-vga-hdmi-audio/hstx_video.c) |
+| Embedded printf | © 2014–2019 Marco Paland | [MIT](src/printf/printf.c) |
+| Linux findfirst | © 2011 Mathieu Turcotte | [GPL-3.0-or-later](findfirst/findfirst.c) |
 
-After successful compilation, build artifacts are placed in the `bin/<platform>/<build_type>/` directory.
-
-#### For host builds:
-*   **Executable:** `386` (Linux) or `386.exe` (Windows); `386-GMDLS.exe` and `386-WINMM.exe` for the other MIDI variants.
-
-#### For the RP2350 firmware:
-`m2p2-386-C<cpu_freq>-P<psram>MHz[-GMDLS].uf2`, for example `m2p2-386-C500-P125MHz.uf2`.
-
-`C500-P125MHz` gives the default CPU and PSRAM clocks in MHz.
-*   **`-GMDLS`**: built with the GM.DLS wavetable MIDI engine.
-
-The following files are generated:
-*   `.uf2`: The firmware file for flashing to the Pico.
-*   `.elf`: The executable file for debugging.
-*   `.bin`: The raw binary file.
-
-### 🎯 Flashing to Pico
-
-1. **Hold the BOOTSEL button** while connecting your Pico to USB
-2. **Copy the `.uf2` file** to the mounted RP2350 drive
-3. **The Pico will automatically reboot** and start running the emulator
-
-### 💾 Setting up Disk Images
-
-#### For the RP2350 firmware:
-Create the required directory structure on your SD card:
-```
-SD Card Root/
-└── XT/
-    ├── fdd0.img    # Floppy Drive A:
-    ├── fdd1.img    # Floppy Drive B: (optional)
-    ├── hdd.img     # Hard Drive C:
-    └── hdd2.img    # Hard Drive D: (optional)
-```
-
-#### For Linux/Windows host builds:
-Place disk images in the project root directory:
-```bash
-# From your project directory (pc/)
-# Place disk images directly in the root:
-cp your-boot-disk.img fdd0.img     # Floppy Drive A:
-cp your-floppy2.img fdd1.img       # Floppy Drive B: (optional)
-cp your-harddisk.img hdd.img       # Hard Drive C:
-cp your-harddisk2.img hdd2.img     # Hard Drive D: (optional)
-
-# Run from build directory
-cd build
-../bin/host/Release/386   # Linux
-# or ../bin/host/Release/386.exe   # Windows
-```
-
-**Supported disk image sizes:**
-*   **Floppy disks:** 360KB, 720KB, 1.2MB, 1.44MB
-*   **Hard disks:** Any size (geometry calculated automatically)
-
-### 🐛 Troubleshooting
-
-**Linux build fails with "X11 not found":**
-- Install X11 development headers: `sudo apt install libx11-dev`
-- On other distributions: `sudo dnf install libX11-devel` (Fedora) or `sudo pacman -S libx11` (Arch)
-
-**Host build shows "DISK: ERROR: cannot open disk file":**
-- Ensure disk images are in the project root directory (not build directory)
-- Check file permissions: `chmod 644 *.img`
-- Verify disk images exist: `ls -la *.img`
-
-**Linux emulator window appears but shows black screen:**
-- Ensure you have a bootable disk image in `fdd0.img`
-- Check disk image format is valid DOS/PC format
-- Try running from terminal to see debug messages
-
-**The board stops at boot with "requires at least 8 MB onboard QMI PSRAM":**
-- The board has no working onboard PSRAM. This firmware needs it.
-
-**HDMI not working:**
-- Check HDMI cable and display compatibility
-- Verify power supply can handle HDMI output requirements
-
-### 📚 Additional Resources
-
-*   **Pin configurations:** Defined in `CMakeLists.txt` compile definitions
-*   **Development board:** [MURMULATOR](https://murmulator.ru) recommended for development
-*   **Video modes reference:** See `VIDEO_MODES.md` for detailed mode specifications
-*   **Build documentation:** See `BUILDING.md` for comprehensive build instructions
-
-## 🤝 Contributing
-
-Contributions to the Pico-386 project are welcome! Please refer to the `CONTRIBUTING.md` file (to be created) for guidelines. 💪
-
-## Stargazers over time
-[![Stargazers over time](https://starchart.cc/xrip/pico-286.svg?variant=adaptive)](https://starchart.cc/xrip/pico-286)
-
-## 📄 License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+The serial mouse uses the UART model from RP8086. The flash setup follows fhoedemakers' flash_config, and the VGA audio load test follows DnCraptor's pico-spec. [Serial mouse](src/emulator/mouse.c) · [Flash setup](drivers/flash-config/README.md) · [Audio detection](drivers/audio/audio.c)
