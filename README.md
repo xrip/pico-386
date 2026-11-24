@@ -1,6 +1,6 @@
-# 🕹️ Pico-286 Project
+# 🕹️ Pico-386 Project
 
-The Pico-286 project is an endeavor to emulate a classic PC system, reminiscent of late 80s and early 90s computers, on the Raspberry Pi Pico 2 (RP2350 microcontroller). It aims to provide a lightweight and educational platform for experiencing retro computing and understanding low-level system emulation. 🖥️✨
+The Pico-386 project is an endeavor to emulate a classic PC system, reminiscent of late 80s and early 90s computers, on the Raspberry Pi Pico 2 (RP2350 microcontroller). It aims to provide a lightweight and educational platform for experiencing retro computing and understanding low-level system emulation. 🖥️✨
 
 ## ⭐ Key Features
 
@@ -146,7 +146,7 @@ To use it:
 
 ## 🔧 Hardware Configuration
 
-Pico-286 supports one board configuration: an **RP2350 (Raspberry Pi Pico 2 class) M2P2 / Murmulator 2 board** with HSTX HDMI video and HDMI audio, or HSTX VGA video, and 8 MB of onboard QMI PSRAM. 🍓
+Pico-386 supports one board configuration: an **RP2350 (Raspberry Pi Pico 2 class) M2P2 / Murmulator 2 board** with HSTX HDMI video and HDMI audio, or HSTX VGA video, and 8 MB of onboard QMI PSRAM. 🍓
 
 ### 🎛️ Supported Components
 *   ⌨️ PS/2 keyboard and mouse
@@ -241,13 +241,12 @@ cmake --build build -j
 After successful compilation, build artifacts are placed in the `bin/<platform>/<build_type>/` directory.
 
 #### For host builds:
-*   **Executable:** `286` (Linux) or `286.exe` (Windows); `286-GMDLS.exe` and `286-WINMM.exe` for the other MIDI variants.
+*   **Executable:** `386` (Linux) or `386.exe` (Windows); `386-GMDLS.exe` and `386-WINMM.exe` for the other MIDI variants.
 
 #### For the RP2350 firmware:
-`286-P<psram>-C<cpu_freq>MHz[-GMDLS].uf2`, for example `286-P166-C500MHz.uf2`.
+`m2p2-386-C<cpu_freq>-P<psram>MHz[-GMDLS].uf2`, for example `m2p2-386-C500-P125MHz.uf2`.
 
-*   **`P<psram>`**: PSRAM frequency (e.g., `P166` for 166MHz).
-*   **`C<cpu_freq>MHz`**: CPU frequency in MHz (`C500MHz`).
+`C500-P125MHz` gives the default CPU and PSRAM clocks in MHz.
 *   **`-GMDLS`**: built with the GM.DLS wavetable MIDI engine.
 
 The following files are generated:
@@ -286,8 +285,8 @@ cp your-harddisk2.img hdd2.img     # Hard Drive D: (optional)
 
 # Run from build directory
 cd build
-../bin/host/Release/286   # Linux
-# or ../bin/host/Release/286.exe   # Windows
+../bin/host/Release/386   # Linux
+# or ../bin/host/Release/386.exe   # Windows
 ```
 
 **Supported disk image sizes:**
@@ -326,7 +325,7 @@ cd build
 
 ## 🤝 Contributing
 
-Contributions to the Pico-286 project are welcome! Please refer to the `CONTRIBUTING.md` file (to be created) for guidelines. 💪
+Contributions to the Pico-386 project are welcome! Please refer to the `CONTRIBUTING.md` file (to be created) for guidelines. 💪
 
 ## Stargazers over time
 [![Stargazers over time](https://starchart.cc/xrip/pico-286.svg?variant=adaptive)](https://starchart.cc/xrip/pico-286)

@@ -22,13 +22,13 @@ set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-project(286 C CXX ASM)
+project(386 C CXX ASM)
 SET(BUILD_NAME "${PROJECT_NAME}")
 
-# CPU Configuration
-set(CPU_FREQ_MHZ "500")
-set(FLASH_FREQ_MHZ "100")
-set(PSRAM_FREQ_MHZ "166")
+# CPU and PSRAM clocks (MHz)
+set(CPU_CLOCK "500")
+set(PSRAM_CLOCK_DIVIDER 4)
+math(EXPR PSRAM_CLOCK "${CPU_CLOCK} / ${PSRAM_CLOCK_DIVIDER}")
 
 # =========================
 # OUTPUT DIRECTORIES
@@ -102,7 +102,7 @@ else ()
     set(PICO_FLASH_SIZE_BYTES 16777216 CACHE STRING "Flash size in bytes" FORCE)
     pico_sdk_init()
 
-    set(BUILD_NAME "${PROJECT_NAME}-P${PSRAM_FREQ_MHZ}-C${CPU_FREQ_MHZ}MHz")
+    set(BUILD_NAME "m2p2-${PROJECT_NAME}-C${CPU_CLOCK}-P${PSRAM_CLOCK}MHz")
     if (MIDI_GM_DLS)
         string(APPEND BUILD_NAME "-GMDLS")
     endif ()
@@ -147,7 +147,7 @@ else ()
             ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
     target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections --function-sections)
 
-    pico_set_program_name(286 "PC 8086/8088/186/286 emulator")
+    pico_set_program_name(${PROJECT_NAME} "Pico-386")
     pico_set_program_version(${PROJECT_NAME} "1.1.0")
     pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
 
@@ -183,9 +183,8 @@ else ()
     target_compile_definitions(${PROJECT_NAME} PRIVATE
             PICO_PANIC_FUNCTION=
             EMU8950_ASM=1
-            CPU_FREQ_MHZ=${CPU_FREQ_MHZ}
-            FLASH_FREQ_MHZ=${FLASH_FREQ_MHZ}
-            PSRAM_FREQ_MHZ=${PSRAM_FREQ_MHZ}
+            CPU_CLOCK=${CPU_CLOCK}
+            PSRAM_CLOCK_DIVIDER=${PSRAM_CLOCK_DIVIDER}
             PICO_FLASH_SIZE_BYTES=${PICO_FLASH_SIZE_BYTES}
             # Pins
             MOUSE_CLOCK_PIN=0 MOUSE_DATA_PIN=1

@@ -41,12 +41,12 @@ cmake --preset m2p2
 cmake --build --preset m2p2
 ```
 
-Output: `bin/rp2350-arm-s/Release/286-P166-C500MHz.uf2`. The same firmware supports HSTX HDMI and VGA.
+Output: `bin/rp2350-arm-s/Release/m2p2-386-C500-P125MHz.uf2`. The same firmware supports HSTX HDMI and VGA.
 
 Notes on the M2P2 firmware:
 - **Clocks:** SYS runs at 500 MHz (1.60 V). HSTX takes its 126 MHz clock from a separate PLL_USB, so USB and ADC are stopped. USB debugging and USB-triggered BOOTSEL are not available; use the board's BOOTSEL button for the next flash.
 - **Sound:** HDMI carries 44.1 kHz stereo in data islands. With VGA, startup probes the load on GPIO9 and GPIO10 to select I2S (DATA 9, BCLK 10, LRCLK 11) or stereo PWM (right 10, left 11). Floating inputs, including an empty socket, can give the I2S signature.
-- **PSRAM:** at least 8 MB onboard QMI PSRAM is required; the firmware stops at boot without it. Conventional RAM, UMB, HMA and XMS all live in PSRAM.
+- **PSRAM:** the default QMI clock is `CPU_CLOCK / PSRAM_CLOCK_DIVIDER` (500 MHz / 4 = 125 MHz). At least 8 MB onboard QMI PSRAM is required; the firmware stops at boot without it. Conventional RAM, UMB, HMA and XMS all live in PSRAM.
 - **SRAM:** code, lookup tables and palettes use normal SRAM. Scratch X and Y are reserved for separate 4 KB core stacks, with hardware stack-limit checks. The linker rejects other scratch allocations.
 - **OPL2:** the OPL2 assembly runs from normal SRAM (2 KB). Both flash and SRAM versions have faulted during HDMI interrupts at 504 MHz; the SRAM change is not a complete fix. See the [OPL2 board record](docs/board-records/hstx-opl-sram.md).
 - **Flash:** every boot checks the flash Quad Enable bit before overclocking. If the bit is clear, the startup code sets and verifies it while running from RAM; if it is already set, no status-register write is made. The RP2350 ROM selects the initial flash read mode, then startup selects quad reads before PSRAM or core 1 starts. See [flash setup](drivers/flash-config/README.md). The flash timing keeps the ROM boot profile's physical intervals and maximum rate when SYS changes. On the tested board, 50 MHz stock flash becomes about 45.45 MHz at 500 MHz SYS.
@@ -74,7 +74,7 @@ cmake --preset m2p2 -DMIDI_GM_DLS=ON
 cmake --build --preset m2p2
 ```
 
-Output: `bin/rp2350-arm-s/Release/286-P166-C500MHz-GMDLS.uf2`.
+Output: `bin/rp2350-arm-s/Release/m2p2-386-C500-P125MHz-GMDLS.uf2`.
 `MIDI_GM_BANK` can point to another packed v4 bank at 22,050 Hz.
 The bank stays in flash; the engine has 32 voices and preserves stereo pan.
 MIDI commands go through a queue to the audio core. MPU-401 reset clears its voices.
@@ -85,9 +85,9 @@ The Win32 build (`-DPICO_PLATFORM=host`) has three MIDI choices:
 
 | Options          | MIDI                                   | Output          |
 |------------------|----------------------------------------|-----------------|
-| (none)           | sine/noise engine                      | `286.exe`       |
-| `MIDI_GM_DLS=ON` | GM.DLS wavetable from the packed bank  | `286-GMDLS.exe` |
-| `MIDI_WINMM=ON`  | the Windows default MIDI output device | `286-WINMM.exe` |
+| (none)           | sine/noise engine                      | `386.exe`       |
+| `MIDI_GM_DLS=ON` | GM.DLS wavetable from the packed bank  | `386-GMDLS.exe` |
+| `MIDI_WINMM=ON`  | the Windows default MIDI output device | `386-WINMM.exe` |
 
 The files go to `bin/host/<build type>/`. `MIDI_WINMM` and `MIDI_GM_DLS` cannot both be on.
 

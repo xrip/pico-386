@@ -237,7 +237,7 @@ static int pulse_init(linux_audio_context_t* ctx) {
     int error;
     ctx->pulse_simple = pa_simple_new(
         NULL,                   // server
-        "Pico-286 Emulator",    // name
+        "Pico-386 Emulator",    // name
         1,                      // PA_STREAM_PLAYBACK = 1
         NULL,                   // device
         "Audio Output",         // stream description

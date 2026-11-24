@@ -17,7 +17,7 @@ enum {
     GRAPHICS_HSTX_CLOCK_HZ = 126000000
 };
 
-#define GRAPHICS_HSTX_SYSTEM_CLOCK_KHZ (CPU_FREQ_MHZ * 1000u)
+#define GRAPHICS_HSTX_SYSTEM_CLOCK_KHZ (CPU_CLOCK * 1000u)
 _Static_assert(GRAPHICS_HSTX_SYSTEM_CLOCK_KHZ == 500000u, "HSTX runs with a 500 MHz system clock");
 
 static bool graphics_pll_is_frequency(PLL pll, uint32_t frequency_hz) {

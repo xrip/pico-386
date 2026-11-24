@@ -358,6 +358,13 @@ inline static uint32_t __not_in_flash_func(_butter_psram_size)() {
     }
     return res << 20;
 }
+enum { PSRAM_RXDELAY_MAX = QMI_M1_TIMING_RXDELAY_BITS >> QMI_M1_TIMING_RXDELAY_LSB };
+_Static_assert(PSRAM_CLOCK_DIVIDER >= (CPU_CLOCK > 100 ? 2 : 1) &&
+               PSRAM_CLOCK_DIVIDER + (CPU_CLOCK > 100 * PSRAM_CLOCK_DIVIDER) <= PSRAM_RXDELAY_MAX,
+               "PSRAM divider is outside the supported QMI timing range");
+static int psram_divider = PSRAM_CLOCK_DIVIDER;
+static uint32_t new_psram_timings;
+
 void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     const int clock_hz = clock_get_hz(clk_sys);
     gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
@@ -381,13 +388,7 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     }
 
     // Set PSRAM timing
-    const int max_psram_freq = PSRAM_FREQ_MHZ * MHZ;
-    int divisor = (clock_hz + max_psram_freq - 1) / max_psram_freq;
-
-    if (divisor == 1 && clock_hz > 100000000) {
-        divisor = 2;
-    }
-
+    const int divisor = psram_divider;
     int rxdelay = divisor;
     if (clock_hz / divisor > 100000000) {
         rxdelay += 1;
@@ -398,7 +399,8 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     const int max_select = (125 * 1000000) / clock_period_fs;  // 125 = 8000ns / 64
     const int min_deselect = (18 * 1000000 + (clock_period_fs - 1)) / clock_period_fs - (divisor + 1) / 2;
 
-    qmi_hw->m[1].timing = 1 << QMI_M1_TIMING_COOLDOWN_LSB |
+    qmi_hw->m[1].timing = new_psram_timings ? new_psram_timings :
+                          1 << QMI_M1_TIMING_COOLDOWN_LSB |
                           QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB |
                           max_select << QMI_M1_TIMING_MAX_SELECT_LSB |
                           min_deselect << QMI_M1_TIMING_MIN_DESELECT_LSB |
@@ -448,18 +450,15 @@ void __attribute__((naked, noreturn)) __printflike(1, 0) dummy_panic(__unused co
     }
 }
 
-int cpu_mhz = CPU_FREQ_MHZ;
-int flash_mhz = FLASH_FREQ_MHZ;
-int psram_mhz = PSRAM_FREQ_MHZ;
+static int flash_mhz = 100;
 uint new_flash_timings = 0;
-uint new_psram_timings = 0;
 static uint32_t boot_flash_timing, boot_flash_hz;
 
 void __not_in_flash() flash_timings() {
     uint32_t timing = new_flash_timings;
     if (!new_flash_timings) {
         if (!flash_timing_for_clock(boot_flash_timing, boot_flash_hz,
-                cpu_mhz * MHZ, flash_mhz * MHZ, &timing)) {
+                CPU_CLOCK * MHZ, flash_mhz * MHZ, &timing)) {
             panic("Cannot preserve boot flash timing at the requested CPU clock");
         }
     }
@@ -474,26 +473,6 @@ void __not_in_flash() flash_timings() {
     __dsb();
     __isb();
     restore_interrupts(saved_interrupts);
-}
-
-void __not_in_flash() psram_timings() {
-    if (!new_psram_timings) {
-        const int max_psram_freq = psram_mhz * MHZ;
-        const int clock_hz = cpu_mhz * MHZ;
-        int divisor = (clock_hz + max_psram_freq - 1) / max_psram_freq;
-        if (divisor == 1 && clock_hz > 100000000) {
-            divisor = 2;
-        }
-        int rxdelay = divisor;
-        if (clock_hz / divisor > 100000000) {
-            rxdelay += 1;
-        }
-        qmi_hw->m[1].timing = (qmi_hw->m[1].timing & ~0x000000FFF) |
-                            rxdelay << QMI_M0_TIMING_RXDELAY_LSB |
-                            divisor << QMI_M0_TIMING_CLKDIV_LSB;
-    } else {
-        qmi_hw->m[1].timing = new_psram_timings;
-    }
 }
 
 static char* open_config(UINT* pbr) {
@@ -541,7 +520,6 @@ static char* next_token(char* t) {
     return t1 - 1;
 }
 
-static int new_cpu_mhz = CPU_FREQ_MHZ;
 static int vreg = VREG_VOLTAGE_1_60;
 static int new_vreg = VREG_VOLTAGE_1_60;
 
@@ -552,12 +530,7 @@ static void load_config_286() {
         tokenizeCfg(buff, br);
         char *t = buff;
         while (t - buff < br) {
-            if (strcmp(t, "CPU") == 0) {
-                t = next_token(t);
-                // These scanout clocks are fixed. A saved CPU setting must
-                // not retune PLL_USB.
-                new_cpu_mhz = CPU_FREQ_MHZ;
-            } else if (strcmp(t, "VREG") == 0) {
+            if (strcmp(t, "VREG") == 0) {
                 t = next_token(t);
                 new_vreg = atoi(t);
                 if (new_vreg != vreg && new_vreg >= VREG_VOLTAGE_0_55 && new_vreg <= VREG_VOLTAGE_3_30) {
@@ -584,18 +557,17 @@ static void load_config_286() {
                 }
             } else if (!new_psram_timings && strcmp(t, "PSRAM") == 0) {
                 t = next_token(t);
-                int new_psram_mhz = atoi(t);
-                if (psram_mhz != new_psram_mhz) {
-                    psram_mhz = new_psram_mhz;
-                    psram_timings();
+                int limit_mhz = atoi(t);
+                if (limit_mhz > 0) {
+                    int div = 1 + (CPU_CLOCK - 1) / limit_mhz;
+                    if (div == 1 && CPU_CLOCK > 100) div = 2;
+                    if (div + (CPU_CLOCK > 100 * div) <= PSRAM_RXDELAY_MAX) psram_divider = div;
                 }
             } else if (strcmp(t, "PSRAM_T") == 0) {
                 t = next_token(t);
                 char *endptr;
-                new_psram_timings = (uint)strtol(t, &endptr, 16);
-                if (*endptr == 0 && qmi_hw->m[1].timing != new_psram_timings) {
-                    psram_timings();
-                }
+                uint32_t timing = strtoul(t, &endptr, 16);
+                if (endptr != t && *endptr == 0) new_psram_timings = timing;
             } else { // unknown token
                 t = next_token(t);
             }
@@ -690,10 +662,7 @@ int main(void) {
     multicore_launch_core1(second_core);
     sem_release(&vga_start_semaphore);
 
-    if (new_cpu_mhz != cpu_mhz) {
-        printf("Failed to overclock to %d MHz\n", new_cpu_mhz);
-    }
-    printf("CPU: %d MHz\n", cpu_mhz);
+    printf("CPU: %u MHz\n", clock_get_hz(clk_sys) / MHZ);
     if (new_vreg < VREG_VOLTAGE_0_55 || new_vreg > VREG_VOLTAGE_3_30) {
         printf("Unexpected VREG value: %d\n", new_vreg);
     }
@@ -704,11 +673,9 @@ int main(void) {
         printf("FLASH max %d MHz [T%p]\n", flash_mhz, qmi_hw->m[0].timing);
     }
     if (butter_psram_size) {
-        if (new_psram_timings == qmi_hw->m[1].timing) {
-            printf("PSRAM [T%p]\n", new_psram_timings);
-        } else {
-            printf("PSRAM max %d MHz [T%p]\n", psram_mhz, qmi_hw->m[1].timing);
-        }
+        uint32_t timing = qmi_hw->m[1].timing;
+        uint32_t div = (timing & QMI_M1_TIMING_CLKDIV_BITS) >> QMI_M1_TIMING_CLKDIV_LSB;
+        printf("PSRAM: %u kHz [T%p]\n", clock_get_hz(clk_sys) / (div ? div : 256) / 1000, timing);
         printf("On-Board-PSRAM mode (GP%d)\n", gp);
     }
 

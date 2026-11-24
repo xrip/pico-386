@@ -182,7 +182,7 @@ static inline bool redirector_handler() {
                 sda_addr = ((uint32_t) CPU_BX << 4) + CPU_DX;
             }
             CPU_AL = 0xFF; // Indicate that the redirector is installed
-            CPU_AH = 0x50; // Product identifier ('P' for Pico-286)
+            CPU_AH = 0x50; // Product identifier ('P' for Pico-386)
             break;
 
         // Remove Remote Directory

@@ -747,7 +747,7 @@ int main() {
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
-    if (!mfb_open("Pico-286 Emulator", 640, 480, 1)) {
+    if (!mfb_open("Pico-386 Emulator", 640, 480, 1)) {
         printf("Failed to open window\n");
         return -1;
     }
