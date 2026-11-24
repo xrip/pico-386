@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.13)
+
 if (NOT (DEFINED PICO_PLATFORM AND PICO_PLATFORM STREQUAL "host"))
 # == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
 if(WIN32)
@@ -13,15 +15,12 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
+    include("$ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake")
 endif()
-cmake_minimum_required(VERSION 3.13)
 
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# Pull in Raspberry Pi Pico SDK (must be before project, but after PICO_BOARD)
-include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
 project(286 C CXX ASM)
 SET(BUILD_NAME "${PROJECT_NAME}")
@@ -42,12 +41,6 @@ set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${PICO_PLATFORM}/${CMAKE_BUILD_TYPE}")
 # SOURCE FILES
 # =========================
 file(GLOB_RECURSE SRC "src/emulator/*.cpp" "src/emulator/*.c" "src/emu8950/*.c" "src/emu8950/*.cpp")
-
-message(STATUS "Add source files:")
-foreach (SRC_FILE IN LISTS SRC)
-    message(STATUS "${SRC_FILE}")
-endforeach ()
-message(STATUS "")
 
 # =========================
 # MIDI OPTIONS (default: the sine/noise engine)
@@ -90,7 +83,7 @@ if (PICO_PLATFORM STREQUAL "host")
         # Linux build
         add_executable(${PROJECT_NAME} ${SRC} src/linux-main.cpp src/LinuxMiniFB.c src/linux-audio.c src/printf/printf.c findfirst/findfirst.c findfirst/spec.c)
         target_link_libraries(${PROJECT_NAME} PRIVATE X11 pthread)
-        target_include_directories(${PROJECT_NAME} PRIVATE src src/emu8950 src/printf findfirst/)
+        target_include_directories(${PROJECT_NAME} PRIVATE findfirst/)
     endif ()
 
     if (MIDI_GM_DLS)
@@ -99,7 +92,6 @@ if (PICO_PLATFORM STREQUAL "host")
         string(APPEND BUILD_NAME "-WINMM")
     endif ()
     set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}" OUTPUT_NAME "${BUILD_NAME}")
-    target_include_directories(${PROJECT_NAME} PRIVATE src src/emu8950 src/printf)
 else ()
     # =========================
     # PICO BUILD: RP2350 (M2P2) with HSTX HDMI, HDMI audio and 8 MB QMI PSRAM
@@ -133,7 +125,6 @@ else ()
     )
 
     add_executable(${PROJECT_NAME} ${SRC} src/pico-main.c src/printf/printf.c src/fault_trace.c)
-    target_include_directories(${PROJECT_NAME} PRIVATE src src/emu8950 src/printf)
     target_sources(${PROJECT_NAME} PRIVATE src/emu8950/slot_render_pico.S)
     set(FLASH_FLOPPY_IMAGE "${CMAKE_CURRENT_SOURCE_DIR}/bin/host/fdd0.img")
     configure_file(src/emulator/flash_floppy.S.in flash_floppy.S @ONLY)
@@ -207,6 +198,8 @@ endif ()
 # =========================
 # COMMON DEFINITIONS (HOST + PICO)
 # =========================
+target_include_directories(${PROJECT_NAME} PRIVATE src src/emu8950 src/printf)
+
 if (MIDI_WINMM)
     target_compile_definitions(${PROJECT_NAME} PRIVATE MIDI_WINMM=1)
 endif ()
