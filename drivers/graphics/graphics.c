@@ -117,14 +117,7 @@ void graphics_prepare_clock(void) {
     sleep_ms(10);
     set_sys_clock_khz(GRAPHICS_HSTX_SYSTEM_CLOCK_KHZ, true);
 
-    // The SDK normally leaves PERI on PLL_USB after changing SYS. Move it to
-    // an integer division of SYS. Initialise application UART/SPI after this
-    // call (125 MHz).
     graphics_stop_peripheral_clock(clk_peri);
-    clock_configure_int_divider(
-        clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS,
-        GRAPHICS_HSTX_SYSTEM_CLOCK_KHZ * 1000u,
-        4u);
 
     reset_block_mask(RESETS_RESET_USBCTRL_BITS | RESETS_RESET_ADC_BITS);
     graphics_stop_peripheral_clock(clk_usb);
@@ -132,6 +125,9 @@ void graphics_prepare_clock(void) {
 
     // Keep scanout independent of SYS: 12 MHz * 105 / 5 / 2 = 126 MHz.
     pll_init(pll_usb, 1u, 1260000000u, 5u, 2u);
+    clock_configure_undivided(
+        clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
+        GRAPHICS_HSTX_CLOCK_HZ);
     clock_configure_undivided(
         clk_hstx, 0, CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
         GRAPHICS_HSTX_CLOCK_HZ);

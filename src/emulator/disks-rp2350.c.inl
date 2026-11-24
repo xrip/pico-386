@@ -6,7 +6,10 @@ extern FATFS fs;
 
 int hdcount = 0, fdcount = 0;
 
-static uint8_t sectorbuffer[512];
+static UINT image_chunk_bytes(unsigned remaining_sectors) {
+    const unsigned capacity = sizeof(transfer_buffer) / 512;
+    return (remaining_sectors < capacity ? remaining_sectors : capacity) * 512;
+}
 
 struct struct_drive {
     FIL diskfile;
@@ -152,57 +155,35 @@ static void readdisk(uint8_t drivenum,
         return;
     }
 
-    // Set file position
-    f_lseek(&disk[drivenum].diskfile, fileoffset);
-
-    // Process sectors
-    for (cursect = 0; cursect < sectcount; cursect++) {
-        // Read the sector into buffer
-        size_t br;
-        f_read(&disk[drivenum].diskfile, &sectorbuffer[0], 512, &br);
-
-        if (!br) {
-//            printf("Disk read error on drive %i\r\n", drivenum);
-            CPU_AH = 0x04;    // sector not found
-            CPU_AL = 0;
-            CPU_FL_CF = 1;
-            return;
-        }
-
+    FRESULT result = f_lseek(&disk[drivenum].diskfile, fileoffset);
+    while (result == FR_OK && cursect < sectcount) {
+        UINT bytes = image_chunk_bytes(sectcount - cursect);
+        UINT received = 0;
+        result = f_read(&disk[drivenum].diskfile, transfer_buffer, bytes, &received);
+        UINT complete_bytes = received - received % 512;
         if (is_verify) {
-            for (int sectoffset = 0; sectoffset < 512; sectoffset++) {
-                // Verify sector data
-                if (read86(memdest++) != sectorbuffer[sectoffset]) {
-                    // Sector verify failed
-                    CPU_AL = cursect;
+            for (UINT offset = 0; offset < complete_bytes; ++offset) {
+                if (read86(memdest++) != transfer_buffer[offset]) {
+                    CPU_AL = cursect + offset / 512;
                     CPU_FL_CF = 1;
-                    CPU_AH = 0xBB;    // sector verify failed error code
+                    CPU_AH = 0xBB;
                     return;
                 }
             }
         } else {
-            for (int sectoffset = 0; sectoffset < 512; sectoffset++) {
-                // Write sector data
-                write86(memdest++, sectorbuffer[sectoffset]);
-            }
+            for (UINT offset = 0; offset < complete_bytes; ++offset)
+                write86(memdest++, transfer_buffer[offset]);
         }
-
-
+        cursect += complete_bytes / 512;
         gpio_put(PICO_DEFAULT_LED_PIN, led_state);
         led_state ^= 1;
-
-        // Update file offset for next sector
-        fileoffset += 512;
+        if (received != bytes) break;
     }
     led_state = 0;
     gpio_put(PICO_DEFAULT_LED_PIN, led_state);
-
-
-
-    // If no sectors could be read, handle the error
-    if (cursect == 0) {
-        CPU_AH = 0x04;    // sector not found
-        CPU_AL = 0;
+    if (result != FR_OK || !cursect || cursect != sectcount) {
+        CPU_AH = 0x04;
+        CPU_AL = cursect;
         CPU_FL_CF = 1;
         return;
     }
@@ -252,31 +233,26 @@ static void writedisk(uint8_t drivenum,
         return;
     }
 
-    // Set file position
-    f_lseek(&disk[drivenum].diskfile, fileoffset);
-
-
-    // Write each sector
-    for (cursect = 0; cursect < sectcount; cursect++) {
-        // Read from memory and store in sector buffer
-        for (int sectoffset = 0; sectoffset < 512; sectoffset++) {
-            // FIXME: segment overflow condition?
-            sectorbuffer[sectoffset] = read86(memdest++);
-        }
-
-        // Write the buffer to the file
-        size_t bw;
-        f_write(&disk[drivenum].diskfile, sectorbuffer, 512, &bw);
+    FRESULT result = f_lseek(&disk[drivenum].diskfile, fileoffset);
+    cursect = 0;
+    size_t available = (disk[drivenum].filesize - fileoffset) / 512;
+    unsigned limit = available < sectcount ? available : sectcount;
+    while (result == FR_OK && cursect < limit) {
+        UINT bytes = image_chunk_bytes(limit - cursect);
+        for (UINT offset = 0; offset < bytes; ++offset)
+            transfer_buffer[offset] = read86(memdest++);
+        UINT written = 0;
+        result = f_write(&disk[drivenum].diskfile, transfer_buffer, bytes, &written);
+        cursect += written / 512;
         gpio_put(PICO_DEFAULT_LED_PIN, led_state);
         led_state ^= 1;
+        if (written != bytes) break;
     }
     led_state = 0;
     gpio_put(PICO_DEFAULT_LED_PIN, led_state);
-
-    // Handle the case where no sectors were written
-    if (sectcount && cursect == 0) {
-        CPU_AH = 0x04;    // sector not found
-        CPU_AL = 0;
+    if (result != FR_OK || cursect != sectcount) {
+        CPU_AH = 0x04;
+        CPU_AL = cursect;
         CPU_FL_CF = 1;
         return;
     }

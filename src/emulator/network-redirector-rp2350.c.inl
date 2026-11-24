@@ -61,7 +61,6 @@ static inline int8_t get_free_handle() {
     return -1; // No free handles
 }
 // TODO: Use pathbuffer as transfer buffer to economy memory
-static uint8_t transfer_buffer[512];
 
 static void read_string_from_ram(uint32_t address, char* buffer, int max_len) {
     for (int i = 0; i < max_len; i++) {

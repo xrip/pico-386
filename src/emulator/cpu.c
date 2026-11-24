@@ -7,6 +7,7 @@
 #define CPU_286_STYLE_PUSH_SP
 #if PICO_ON_DEVICE
 
+static uint8_t transfer_buffer[8192] __attribute__((aligned(4)));
 #include "disks-rp2350.c.inl"
 #include "network-redirector-rp2350.c.inl"
 #include "graphics.h"
