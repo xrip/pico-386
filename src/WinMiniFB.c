@@ -18,7 +18,6 @@ static HDC s_hdc;
 static void *s_buffer;
 BITMAPINFO *s_bitmapInfo;
 static char key_status[512] = {0};
-RECT rect = {0};
 HMENU hOptionsMenu;
 POINT lastPos = {0, 0};
 
@@ -108,6 +107,15 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+static BOOL CALLBACK find_left_monitor(HMONITOR monitor, HDC dc, LPRECT bounds, LPARAM data) {
+    MONITORINFO *left = (MONITORINFO *)data;
+    if (bounds->left < left->rcMonitor.left) {
+        MONITORINFO info = { .cbSize = sizeof(info) };
+        if (GetMonitorInfo(monitor, &info)) *left = info;
+    }
+    return TRUE;
+}
+
 int mfb_open(const char *title, int width, int height, int scale) {
     s_wc.style = CS_OWNDC | CS_VREDRAW | CS_HREDRAW;
     s_wc.lpfnWndProc = WndProc;
@@ -116,36 +124,32 @@ int mfb_open(const char *title, int width, int height, int scale) {
 
     RegisterClass(&s_wc);
 
-    rect.right = width * scale;
-    rect.bottom = (10 + height) * scale;
+    MONITORINFO monitor = { .cbSize = sizeof(monitor) };
+    HMONITOR primary = MonitorFromPoint((POINT){0, 0}, MONITOR_DEFAULTTOPRIMARY);
+    if (!GetMonitorInfo(primary, &monitor)) return 0;
+    EnumDisplayMonitors(NULL, NULL, find_left_monitor, (LPARAM)&monitor);
 
-    AdjustWindowRect(&rect, WS_POPUP | WS_SYSMENU | WS_CAPTION, 0);
-
-    rect.right -= rect.left;
-    rect.bottom -= rect.top;
+    const RECT work = monitor.rcWork;
+    const int work_width = work.right - work.left;
+    const int work_height = work.bottom - work.top;
+    const DWORD style = WS_OVERLAPPEDWINDOW & ~(WS_MAXIMIZEBOX | WS_THICKFRAME);
+    int window_width, window_height;
+    for (;;) {
+        RECT frame = {0, 0, width * scale, height * scale};
+        AdjustWindowRect(&frame, style, TRUE);
+        window_width = frame.right - frame.left;
+        window_height = frame.bottom - frame.top;
+        if (scale <= 1 || (window_width <= work_width && window_height <= work_height)) break;
+        --scale;
+    }
 
     s_width = width;
     s_height = height;
     s_scale = scale;
-
-    if (GetSystemMetrics(SM_XVIRTUALSCREEN) < 0) {
-        //
-        s_wnd = CreateWindowEx(0,
-                               title, title,
-                               WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX & ~WS_THICKFRAME,
-                               -1920 + (GetSystemMetrics(SM_CXSCREEN) - rect.right) / 2,
-                               320 + (GetSystemMetrics(SM_CYSCREEN) - rect.bottom + rect.top) / 2,
-                               rect.right, rect.bottom,
-                               0, 0, 0, 0);
-    } else {
-        s_wnd = CreateWindowEx(0,
-                           title, title,
-                           WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX & ~WS_THICKFRAME,
-                           (GetSystemMetrics(SM_CXSCREEN) - rect.right) / 2,
-                           (GetSystemMetrics(SM_CYSCREEN) - rect.bottom + rect.top) / 2,
-                           rect.right, rect.bottom,
-                           0, 0, 0, 0);
-    }
+    s_wnd = CreateWindowEx(0, title, title, style,
+                           work.left + (work_width - window_width) / 2,
+                           work.top + (work_height - window_height) / 2,
+                           window_width, window_height, NULL, NULL, NULL, NULL);
 
     if (!s_wnd)
         return 0;
