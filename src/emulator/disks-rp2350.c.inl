@@ -3,6 +3,7 @@
 #include "ff.h"
 
 extern FATFS fs;
+extern const uint8_t flash_floppy[], flash_floppy_end[];
 
 int hdcount = 0, fdcount = 0;
 
@@ -13,6 +14,7 @@ static UINT image_chunk_bytes(unsigned remaining_sectors) {
 
 struct struct_drive {
     FIL diskfile;
+    const uint8_t *image;
     size_t filesize;
     uint16_t cyls;
     uint16_t sects;
@@ -40,17 +42,26 @@ uint8_t insertdisk(uint8_t drivenum, const char *pathname) {
 
     if (drivenum & 0x80) drivenum -= 126;  // Normalize hard drive numbers
 
-    if (FR_OK != f_open(&file, pathname, FA_READ | FA_WRITE )) {
-        //draw_text("Cant mount drive", 0, 0, 12, 0);
-        //while (1);
-        return 0;
+    const uint8_t *image = NULL;
+    bool readonly = false;
+    FRESULT result = f_open(&file, pathname, FA_READ | FA_WRITE);
+    if (drivenum == 0 && (result == FR_WRITE_PROTECTED || result == FR_DENIED)) {
+        result = f_open(&file, pathname, FA_READ);
+        readonly = true;
+    }
+    if (result != FR_OK) {
+        if (drivenum != 0 || (result != FR_NO_FILE && result != FR_NO_PATH &&
+            result != FR_NOT_ENABLED && result != FR_NOT_READY))
+            return 0;
+        image = flash_floppy;
+        readonly = true;
     }
 
-    size_t size = f_size(&file);
+    size_t size = image ? (uintptr_t)flash_floppy_end - (uintptr_t)image : f_size(&file);
 
     // Validate size constraints
     if (size < 360 * 1024 || size > 0x1f782000UL || (size & 511)) {
-        f_close(&file);
+        if (!image) f_close(&file);
 //        fprintf(stderr, "DISK: ERROR: invalid disk size for drive %02Xh (%lu bytes)\n", drivenum, (unsigned long) size);
         return 0;
     }
@@ -88,10 +99,11 @@ uint8_t insertdisk(uint8_t drivenum, const char *pathname) {
     // Eject any existing disk and insert the new one
     ejectdisk(drivenum);
 
-    disk[drivenum].diskfile = file;
+    if (!image) disk[drivenum].diskfile = file;
+    disk[drivenum].image = image;
     disk[drivenum].filesize = size;
     disk[drivenum].inserted = 1;  // Using 1 instead of true for consistency with uint8_t
-    disk[drivenum].readonly = 0;  // Default to read-write
+    disk[drivenum].readonly = readonly;
     disk[drivenum].cyls = cyls;
     disk[drivenum].heads = heads;
     disk[drivenum].sects = sects;
@@ -155,15 +167,24 @@ static void readdisk(uint8_t drivenum,
         return;
     }
 
-    FRESULT result = f_lseek(&disk[drivenum].diskfile, fileoffset);
+    const uint8_t *image = disk[drivenum].image;
+    FRESULT result = image ? FR_OK : f_lseek(&disk[drivenum].diskfile, fileoffset);
     while (result == FR_OK && cursect < sectcount) {
         UINT bytes = image_chunk_bytes(sectcount - cursect);
         UINT received = 0;
-        result = f_read(&disk[drivenum].diskfile, transfer_buffer, bytes, &received);
+        const uint8_t *data = transfer_buffer;
+        if (image) {
+            size_t remaining = disk[drivenum].filesize - fileoffset;
+            received = remaining < bytes ? remaining : bytes;
+            data = image + fileoffset;
+            fileoffset += received;
+        } else {
+            result = f_read(&disk[drivenum].diskfile, transfer_buffer, bytes, &received);
+        }
         UINT complete_bytes = received - received % 512;
         if (is_verify) {
             for (UINT offset = 0; offset < complete_bytes; ++offset) {
-                if (read86(memdest++) != transfer_buffer[offset]) {
+                if (read86(memdest++) != data[offset]) {
                     CPU_AL = cursect + offset / 512;
                     CPU_FL_CF = 1;
                     CPU_AH = 0xBB;
@@ -172,7 +193,7 @@ static void readdisk(uint8_t drivenum,
             }
         } else {
             for (UINT offset = 0; offset < complete_bytes; ++offset)
-                write86(memdest++, transfer_buffer[offset]);
+                write86(memdest++, data[offset]);
         }
         cursect += complete_bytes / 512;
         gpio_put(PICO_DEFAULT_LED_PIN, led_state);
@@ -316,8 +337,8 @@ static inline void diskhandler() {
             break;
 
         case 0x05:  // Format track
-            CPU_FL_CF = 0;  // Success (no-op for emulator)
-            CPU_AH = 0;
+            CPU_FL_CF = disk[drivenum].inserted && disk[drivenum].readonly;
+            CPU_AH = CPU_FL_CF ? 0x03 : 0;
             break;
 
         case 0x08:  // Get drive parameters

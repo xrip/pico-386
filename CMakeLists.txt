@@ -135,6 +135,11 @@ else ()
     add_executable(${PROJECT_NAME} ${SRC} src/pico-main.c src/printf/printf.c src/fault_trace.c)
     target_include_directories(${PROJECT_NAME} PRIVATE src src/emu8950 src/printf)
     target_sources(${PROJECT_NAME} PRIVATE src/emu8950/slot_render_pico.S)
+    set(FLASH_FLOPPY_IMAGE "${CMAKE_CURRENT_SOURCE_DIR}/bin/host/fdd0.img")
+    configure_file(src/emulator/flash_floppy.S.in flash_floppy.S @ONLY)
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/flash_floppy.S"
+        PROPERTIES OBJECT_DEPENDS "${FLASH_FLOPPY_IMAGE}")
+    target_sources(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/flash_floppy.S")
 
     # =========================
     # BOOT STAGE 2 CONFIGURATION

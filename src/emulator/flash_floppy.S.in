@@ -1,0 +1,6 @@
+    .section .rodata.flash_floppy,"a"
+    .balign 4
+    .global flash_floppy, flash_floppy_end
+flash_floppy:
+    .incbin "@FLASH_FLOPPY_IMAGE@"
+flash_floppy_end:

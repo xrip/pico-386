@@ -644,22 +644,15 @@ int main(void) {
 #if defined(MIDI_GM_DLS)
     midi_dls_init();
 #endif
-    if (FR_OK != f_mount(&fs, "0", 1)) {
-        sem_init(&vga_start_semaphore, 0, 1);
-        multicore_launch_core1(second_core);
-        sem_release(&vga_start_semaphore);
-        printf("SD Card not inserted or SD Card error!");
-        keyboard_init();
-        while (1);
-    }
+    bool sd_ready = f_mount(&fs, "0:", 1) == FR_OK;
+    if (!sd_ready)
+        f_mount(NULL, "0:", 0);
 
     nespad_begin(NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
     sleep_ms(5);
     nespad_read();
 
-    if (nespad_state & DPAD_SELECT) {
-        // skip config
-    } else {
+    if (sd_ready && !(nespad_state & DPAD_SELECT)) {
         load_config_286();
     }
 

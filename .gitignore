@@ -52,6 +52,11 @@ Mkfile.old
 dkms.conf
 .vscode/
 bin/
+!/bin/
+/bin/*
+!/bin/host/
+/bin/host/*
+!/bin/host/fdd0.img
 build/
 _deps
 CMakeFiles
