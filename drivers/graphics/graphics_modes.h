@@ -78,6 +78,7 @@ typedef struct graphics_pc_state {
     uint32_t tga_offset;
     uint8_t foreground;
     uint8_t blink_mask;
+    uint8_t text_height, text_rows;
     uint8_t cursor_x;
     uint8_t cursor_y;
     uint8_t cursor_start;

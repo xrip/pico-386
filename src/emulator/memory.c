@@ -6,6 +6,7 @@ uint32_t __attribute__((aligned (4)))  VIDEORAM[VIDEORAM_SIZE] = {0};
 uint8_t __attribute__((aligned (4), section(".psram"))) RAM[RAM_SIZE] = {0};
 uint8_t __attribute__((aligned (4), section(".psram"))) UMB[UMB_END - UMB_START] = {0};
 uint8_t __attribute__((aligned (4), section(".psram"))) EXTENDED[EXTENDED_END - HMA_START] = {0};
+#include "video/vga_rom.c.inl"
 #define A20 0x100000 // with the A20 gate shut, address bit 20 is 0
 
 #define VIDEORAM_MASK 0xFFFF
@@ -54,7 +55,7 @@ __not_in_flash() void writew86_ob(const uint32_t address, const uint16_t value) 
 }
 
 __not_in_flash() void writedw86_ob(const uint32_t address, const uint32_t value) {
-    if (address & 1) {
+    if (address & 3) {
         write86_ob(address, (uint8_t) (value & 0xFF));
         write86_ob(address + 1, (uint8_t) ((value >> 8) & 0xFF));
         write86_ob(address + 2, (uint8_t) ((value >> 16) & 0xFF));
@@ -85,9 +86,7 @@ __not_in_flash() uint8_t read86_ob(const uint32_t address) {
     if (address >= VIDEORAM_START && address < VIDEORAM_END) {
         return vga_mem_read(address);
     }
-     // if (address >= VBIOS_START && address < VBIOS_END) {
-         // return VGABIOS[address - VBIOS_START];
-     // }
+    if (address >= VBIOS_START && address < VBIOS_END) return vga_rom_byte(address - VBIOS_START);
     if (address >= UMB_START && address < UMB_END) {
         return UMB[address - UMB_START];
     }
@@ -117,9 +116,8 @@ __not_in_flash() uint16_t readw86_ob(const uint32_t address) {
     if (address >= VIDEORAM_START && address < VIDEORAM_END) {
         return  vga_mem_read16(address);
     }
-    // if (address >= VBIOS_START && address < VBIOS_END) {
-        // return *(uint16_t *) &VGABIOS[address - VBIOS_START];
-    // }
+    if (address >= VBIOS_START && address < VBIOS_END)
+        return vga_rom_byte(address - VBIOS_START) | (vga_rom_byte(address + 1 - VBIOS_START) << 8);
     if (address >= UMB_START && address < UMB_END) {
         return *(uint16_t *) &UMB[address - UMB_START];
     }
@@ -151,6 +149,8 @@ __not_in_flash() uint32_t readdw86_ob(const uint32_t address) {
                | ((uint32_t) read86_ob(address + 2) << 16)
                | ((uint32_t) read86_ob(address + 3) << 24);
     }
+    if (address >= VBIOS_START && address < VBIOS_END)
+        return readw86_ob(address) | ((uint32_t)readw86_ob(address + 2) << 16);
     if (address >= UMB_START && address < UMB_END) {
         return *(uint32_t *) &UMB[address - UMB_START];
     }

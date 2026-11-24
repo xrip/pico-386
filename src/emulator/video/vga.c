@@ -11,7 +11,9 @@
 static uint8_t sequencer_register = 0;
 static uint8_t graphics_control_register = 0;
 
+static uint8_t misc_output = 0x67, pel_mask = 0xff, vga_enable = 1;
 static uint8_t color_index = 0, read_color_index = 0, vga_register;
+static uint8_t dac_status, dac_read_component, dac_write_component;
 static uint8_t attribute_registers[0x15];
 uint8_t vga_attribute_flip_flop; // 0: the next 3C0h write is an index, 1: data. A 3DAh read makes it 0.
 uint8_t vga_planar_mode = 0;
@@ -62,9 +64,6 @@ uint32_t vga_palette[256] = {
     0x2D412D, 0x2D4131, 0x2D4139, 0x2D413D, 0x2D4141, 0x2D3D41, 0x2D3941, 0x2D3141, // 240-247
     0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000 // 248-255
 };
-#if PICO_ON_DEVICE
-bool ega_vga_enabled = true;
-#endif
 
 // Utility: replicate an 8-bit value into all four bytes of a 32-bit word
 inline static uint32_t expand_to_u32(const uint8_t value) {
@@ -347,7 +346,33 @@ void __not_in_flash() vga_mem_write16(const uint32_t address, const uint16_t cpu
 }
 
 // ---------------------- Initialization ----------------------
+uint32_t vga_display_color(unsigned index) {
+    return vga_palette[index & pel_mask];
+}
+
+#if !PICO_ON_DEVICE
+const uint32_t *vga_display_palette(void) {
+    if (pel_mask == 0xff) return vga_palette;
+    static uint32_t masked[256];
+    for (unsigned i = 0; i < 256; ++i) masked[i] = vga_display_color(i);
+    return masked;
+}
+#endif
+
+void vga_set_dac_color(unsigned index, uint32_t color) {
+    vga_palette[index] = color;
+#if PICO_ON_DEVICE
+    if (pel_mask == 0xff) graphics_set_palette(index, color);
+    else for (unsigned i = 0; i < 256; ++i)
+        if ((i & pel_mask) == index) graphics_set_palette(i, color);
+#endif
+}
+
 void vga_init(void) {
+    dac_status = dac_read_component = dac_write_component = 0;
+    misc_output = 0x67;
+    pel_mask = 0xff;
+    vga_enable = 1;
     // memset(VIDEORAM, 0, sizeof(VIDEORAM));
 
     // Initialize the regs and derived cache
@@ -381,6 +406,15 @@ void vga_portout(uint16_t portnum, uint16_t value) {
 
     switch (portnum) {
         /* Attribute Address Register */
+        case 0x3C2: misc_output = value; break;
+        case 0x3C3: vga_enable = value & 1; break;
+        case 0x3C6:
+            if (pel_mask == (uint8_t)value) break;
+            pel_mask = value;
+#if PICO_ON_DEVICE
+            for (unsigned i = 0; i < 256; ++i) graphics_set_palette(i, vga_display_color(i));
+#endif
+            break;
         case 0x3C0: {
             if (vga_attribute_flip_flop) {
                 if (vga_register < sizeof attribute_registers) attribute_registers[vga_register] = value;
@@ -390,10 +424,7 @@ void vga_portout(uint16_t portnum, uint16_t value) {
                     const uint8_t g = (((value >> 1) & 1) << 1) + ((value >> 4) & 1);
                     const uint8_t b = (((value >> 0) & 1) << 1) + ((value >> 3) & 1);
 
-                    vga_palette[vga_register] = rgb(r * 85, g * 85, b * 85);
-#if PICO_ON_DEVICE
-                    graphics_set_palette(vga_register, vga_palette[vga_register]);
-#endif
+                    vga_set_dac_color(vga_register, rgb(r * 85, g * 85, b * 85));
                 } else if (vga_register == 0x10) {
                     // Attribute Mode Control
                     //printf("[VGA] value 0x%02x\r\n", value);
@@ -421,26 +452,25 @@ void vga_portout(uint16_t portnum, uint16_t value) {
             // other seq regs could be handled here if desired
             break;
         case 0x3C7:
+            dac_status = 3;
+            dac_read_component = 0;
             read_color_index = value & 0xff;
             break;
         case 0x3C8: //color index register (write operations)
+            dac_status = dac_write_component = 0;
             color_index = value & 0xff;
             break;
         case 0x3C9: {
             //RGB data register
             static uint8_t RGB[3] = {0, 0, 0};
-            static uint8_t rgb_index = 0;
 
-            RGB[rgb_index++] = value << 2;
-            if (rgb_index == 3) {
+            RGB[dac_write_component++] = value << 2;
+            if (dac_write_component == 3) {
                 const uint8_t index = color_index;
                 const uint32_t color = rgb(RGB[0], RGB[1], RGB[2]);
-                vga_palette[index] = color;
-#if PICO_ON_DEVICE
-                graphics_set_palette(index, color);
-#endif
+                vga_set_dac_color(index, color);
                 color_index = (uint8_t)(index + 1u);
-                rgb_index = 0;
+                dac_write_component = 0;
             }
             break;
         }
@@ -464,23 +494,25 @@ uint16_t vga_portin(uint16_t portnum) {
     //printf("vga_portin %x\n", portnum);
 
     switch (portnum) {
+        case 0x3CC: return misc_output;
+        case 0x3C3: return vga_enable;
+        case 0x3C6: return pel_mask;
         case 0x3C0: return vga_register | 0x20; // with the palette address source bit: the picture is on
         case 0x3C1: return vga_register < sizeof attribute_registers ? attribute_registers[vga_register] : 0;
         case 0x3C4: return sequencer_register;
         case 0x3C5: return vga.sequencer[sequencer_register];
         case 0x3CE: return graphics_control_register;
         case 0x3CF: return vga.graphics_controller[graphics_control_register];
-        case 0x3C8:
-            return read_color_index;
+        case 0x3C7: return dac_status;
+        case 0x3C8: return color_index;
         case 0x3C9: {
-            static uint8_t rgb_index = 0;
-            switch (rgb_index++) {
+            switch (dac_read_component++) {
                 case 0:
                     return ((vga_palette[read_color_index] >> 18)) & 63;
                 case 1:
                     return ((vga_palette[read_color_index] >> 10)) & 63;
                 case 2:
-                    rgb_index = 0;
+                    dac_read_component = 0;
                     return ((vga_palette[read_color_index++] >> 2)) & 63;
             }
         }

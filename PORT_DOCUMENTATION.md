@@ -28,7 +28,7 @@ specification. Many devices are partial emulations. An unhandled read returns
 | `0378h`, `037Ah` | Disney Sound Source | `0378h–0379h` read status/data; `037Ah` returns zero |
 | `03B0h–03B7h`, `03D0h–03D7h` | MC6845 index/data registers | Only `03D4h` (index) and `03D5h` (data) |
 | `03B8h`, `03BFh`, `03D8h`, `03D9h` | Hercules or CGA control | Not handled here |
-| `03C0h–03C9h`, `03CEh–03CFh` | VGA register handler for selected ports | VGA register handler for selected ports |
+| `03C0h–03C9h`, `03CEh–03CFh` | VGA register handler for selected ports | VGA register handler for selected ports; `03CCh` reads back the miscellaneous output register |
 | `03DAh` | TGA register index | CGA status; also resets the VGA attribute flip-flop |
 | `03DEh–03DFh` | TGA data and page registers | Not handled |
 | `03F8h–03FFh` | Serial mouse | Serial mouse |

@@ -92,12 +92,6 @@ bool handleScancode(uint32_t ps2scancode) {
                 watchdog_enable(1, true);
             }
             break;
-        case SCANCODE_KP_MULT_UP: // KP "*" up
-            if (ctrlPressed && altPressed) {
-                ega_vga_enabled = !ega_vga_enabled;
-                printf("EGA/VGA: %s\n", ega_vga_enabled ? "ON" : "MCGA");
-            }
-            break;
         case SCANCODE_KP_MINUS_UP: // KP "-" up
             if (ctrlPressed && altPressed) {
                 switch (tormoz) {
@@ -168,13 +162,16 @@ INLINE void _putchar(char character) {
 }
 
 void __time_critical_func(graphics_pc_snapshot)(graphics_pc_state_t *state) {
-    state->vram_offset = vram_offset;
+    // The text decoder starts at B800h; monochrome text uses B000h.
+    state->vram_offset = videomode == 7 && !hercules_mode ? (vram_offset + 0x4000) & 0x7fff : vram_offset;
     state->tga_offset = tga_offset;
     state->foreground = cga_foreground_color;
     state->blink_mask = cga_blinking;
+    state->text_height = RAM[0x485];
+    state->text_rows = RAM[0x484] + 1;
     state->cursor_x = 0;
     state->cursor_y = 0;
-    if (videomode <= TEXTMODE_80x25_COLOR && !boot_console) {
+    if ((videomode <= TEXTMODE_80x25_COLOR || (videomode == 7 && !hercules_mode)) && !boot_console) {
         {
             state->cursor_x = CURSOR_X;
             state->cursor_y = CURSOR_Y;
@@ -216,7 +213,7 @@ void __time_critical_func() second_core(void) {
 
     // Set initial VGA palette
     for (unsigned i = 0; i < 256; i++) {
-        graphics_set_palette(i, vga_palette[i]);
+        graphics_set_palette(i, vga_display_color(i));
     }
 
     const bool vga_audio = hstx_video_is_vga();
@@ -275,7 +272,7 @@ void __time_critical_func() second_core(void) {
         if (tick >= last_frame_tick + 16667) {
             static int old_video_mode = -1;
             const int output_mode = videomode == VGA_320x200x256 && vga_planar_mode
-                    ? VGA_320x200x256x4 : videomode;
+                    ? VGA_320x200x256x4 : (videomode == 7 && !hercules_mode ? TEXTMODE_80x25_BW : videomode);
 
             // Handle video mode changes
             if (old_video_mode != output_mode) {
@@ -321,7 +318,7 @@ void __time_critical_func() second_core(void) {
                     case VGA_320x200x256x4:
                     default:
                         for (unsigned i = 0; i < 256; i++) {
-                            graphics_set_palette(i, vga_palette[i]);
+                            graphics_set_palette(i, vga_display_color(i));
                         }
                         break;
                 }

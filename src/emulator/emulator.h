@@ -9,6 +9,7 @@
 #define __time_critical_func(x)
 #endif
 #include <stdint.h>
+#include <stdbool.h>
 #include "cpu.h"
 
 #ifdef __cplusplus
@@ -24,10 +25,15 @@ extern "C" {
 #define VIDEORAM_END (0xC0000)
 
 #define VBIOS_START (0xC0000)
-#define VBIOS_END (0xC8000)
+#define VBIOS_END (VBIOS_START + 0x2800)
+#define VGA_INT10_VECTOR 0xc0000040u
+#define VGA_STATIC_INFO 0xc0000080u
+#define VGA_FONT8  0xc0000200u
+#define VGA_FONT14 0xc0000a00u
+#define VGA_FONT16 0xc0001800u
 
 
-#define UMB_START (0xC0000)
+#define UMB_START VBIOS_END
 #define UMB_END (0xFC000)
 
 // Extended memory (EXTENDED[]) starts at 1 MB: the 64 KB HMA, then the XMS blocks
@@ -41,7 +47,6 @@ extern "C" {
 
 #define BIOS_MEMORY_SIZE                0x413
 #define BIOS_TRUE_MEMORY_SIZE           0x415
-#define BIOS_CRTCPU_PAGE        0x48A
 extern uint8_t log_debug;
 
 
@@ -109,10 +114,20 @@ static inline __not_in_flash() void load_segment(const uint8_t reg, const uint16
 
 // Video
 extern int videomode;
-#define CURSOR_X FIRST_RAM_PAGE[0x450]
-#define CURSOR_Y FIRST_RAM_PAGE[0x451]
+#define CURSOR_X FIRST_RAM_PAGE[0x450 + 2 * (FIRST_RAM_PAGE[0x462] & 7)]
+#define CURSOR_Y FIRST_RAM_PAGE[0x451 + 2 * (FIRST_RAM_PAGE[0x462] & 7)]
 extern uint8_t cursor_start, cursor_end;
 extern uint32_t vga_palette[256];
+uint32_t vga_display_color(unsigned index);
+const uint32_t *vga_display_palette(void);
+void vga_set_dac_color(unsigned index, uint32_t color);
+
+// System BIOS graphics services
+bool vga_bios_int10(void);
+bool cga_bios_int10(void);
+void cga_bios_set_mode(bool clear);
+void cga_bios_text_font(unsigned height);
+void bios_bell(void);
 
 // TGA
 extern uint32_t tga_palette[16];
@@ -120,14 +135,13 @@ extern uint8_t tga_palette_map[16];
 
 extern void tga_portout(uint16_t portnum, uint16_t value);
 
-extern void tga_draw_char(uint8_t ch, int x, int y, uint8_t color);
-
 extern void tga_draw_pixel(int x, int y, uint8_t color);
 
 // CGA
 extern const uint32_t cga_palette[16];
 extern const uint8_t cga_gfxpal[3][2][4];
 extern uint32_t cga_composite_palette[3][16];
+extern uint8_t hercules_mode;
 extern uint8_t cga_intensity, cga_colorset, cga_foreground_color, cga_blinking, cga_blinking_lock, cga_hires;
 
 void cga_portout(uint16_t portnum, uint16_t value);
@@ -140,11 +154,7 @@ void vga_set_cpu_page_offset(uint32_t offset);
 extern uint8_t vga_planar_mode;
 extern uint8_t vga_attribute_flip_flop;
 
-#if PICO_ON_DEVICE
-    extern bool ega_vga_enabled;
-#else
-#define ega_vga_enabled (1)
-#endif
+
 
 void OpFpu(uint8_t opcode);
 

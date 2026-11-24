@@ -14,7 +14,7 @@ changes do not clear VRAM. Page, bank, cursor, and blink state are read per line
 | 02, 03 | 80x25 BW/color text | Character and attribute in two words |
 | 04, 05 | CGA 320x200, 4 colors | 2 bits/pixel; two 8 KB banks |
 | 06 | CGA 640x200, 2 colors | 1 bit/pixel; two 8 KB banks |
-| 07 | Hercules 640x480 | Four banks, 90-word pitch, first 640 of 720 pixels |
+| 07 | Monochrome 80x25 text; Hercules graphics when enabled | Text at B000h or four graphics banks with 90-word pitch |
 | 1E | Hercules 640x348 | Same banks; five-word crop from 720 pixels |
 | 08 | Tandy 160x200, 16 colors | Two nibbles/word; two banks |
 | 09 | Tandy 320x200, 16 colors | Two nibbles/word; four banks |
@@ -27,6 +27,31 @@ changes do not clear VRAM. Page, bank, cursor, and blink state are read per line
 | 13 | VGA 320x200, 256 colors | One low-byte pixel/word |
 | FF | VGA Mode X 320x200, 256 colors | Four adjacent pixels/word |
 | 74, 76 | CGA composite color | 160-pixel nibble colors (artifact colors) |
+
+## Guest video BIOS
+
+PCXTBIOS or GLaBIOS performs POST and boots DOS. The emulated adapter has a
+checksummed 10 KiB video ROM at C000:0000. Its entry installs INT 10h at
+C000:0040. DOS can hook the vector and chain to it. The ROM exposes 8x8,
+8x14 and 8x16 fonts and a functionality table; the interrupt handlers draw
+directly into Pico-386's video memory in native C. XMS upper-memory blocks
+start at C280h (about 230 KiB before the system BIOS stubs).
+
+- CGA mode, cursor and page selection, character reads/writes, scrolling,
+  teletype, string output, palette and packed pixels use the emulator's BDA,
+  emulated 6845 and VRAM. Rectangular text scrolls copy whole row spans.
+- The graphics modes above have native glyph, pixel and string services.
+  The display ID (`AX=1A00h`) reports VGA with a color monitor (`BX=0008h`).
+  The EGA-compatible query (`AH=12h, BL=10h`) reports 256 KiB. `AH=1Bh`
+  returns adapter information and `AH=1Ch` saves/restores emulated state.
+  DOS interrupt hooks can chain to the native services in real or V86 mode.
+- `AX=1130h` returns guest-readable font addresses; the built-in VGA text fonts support
+  80x25 and 80x50, or 80x43 with 350 scan lines. Separate
+  alternate 9-dot fonts, physical text character-generator banks, VESA/VBE
+  and SVGA chipset extensions are outside this implementation. DOS programs
+  which depend on such hardware can still differ from a physical VGA card.
+
+[Guest interrupt test](tests/vga_bios_boot.asm) · [Text throughput benchmark](tests/cga_text_bench.asm)
 
 ## Output size and text
 

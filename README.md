@@ -24,7 +24,7 @@ DOS gets a keyboard, mouse, disk drives, color graphics, and stereo sound. Dune 
 | Part | Emulated hardware |
 | --- | --- |
 | CPU and memory | Intel 386SX, x87 floating-point unit, conventional memory, upper memory blocks, HMA and XMS |
-| Screen | Text, Hercules, CGA, Tandy, EGA and VGA, including Mode X. [Video modes](VIDEO_MODES.md) |
+| Screen | DOS sees a color VGA adapter with 256 KB. Text, Hercules, CGA, Tandy, EGA, VGA and Mode X. [Video modes](VIDEO_MODES.md) |
 | Disks | Two floppy drives and two hard disks through BIOS disk services |
 | Input | PC keyboard, Microsoft serial mouse on COM1, game-port joystick |
 | Sound | PC speaker, Tandy SN76489, AdLib OPL2, Sound Blaster Pro 2, Game Blaster, Covox Speech Thing and Disney Sound Source |
@@ -52,6 +52,7 @@ Pico-386 project code is copyright © 2026 xrip under the [MIT License](LICENSE)
 
 | Code | Copyright or credit | License or source notice |
 | --- | --- | --- |
+| Graphics-mode text routines adapted with SeaBIOS as a reference | © 2009–2014 Kevin O'Connor and © 2001–2008 the LGPL VGABios developers Team | [Upstream source](https://github.com/coreboot/seabios/tree/28aa46349b97ef0ebf742ae4fb9f9fad03578670/vgasrc), [LGPLv3](src/emulator/video/seabios-license/COPYING.LESSER) |
 | Original Fake86 CPU core | Mike Chambers | [Fake86 project](https://sourceforge.net/projects/fake86/) |
 | Raspberry Pi Pico SDK and I2S PIO code | © 2020 Raspberry Pi (Trading) Ltd. and SDK contributors | [SDK license](https://github.com/raspberrypi/pico-sdk/blob/master/LICENSE.TXT), [BSD-3-Clause PIO notice](drivers/audio/audio_i2s.pio) |
 | FatFs and its Unicode tables | © 2021 ChaN (FatFs), © 2014 ChaN (Unicode tables) | [FatFs terms](drivers/fatfs/ff.c), [Unicode notice](drivers/fatfs/ffunicode.c) |

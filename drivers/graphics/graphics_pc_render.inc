@@ -23,13 +23,23 @@ static inline __attribute__((always_inline)) void PC_FN(text_line)(
     PC_PIXEL *const origin = output;
     (void)origin; (void)palette;
     const unsigned columns = mode <= TEXTMODE_40x25_COLOR ? 40u : 80u;
-    const unsigned cell_height = height == 480 ? 16u : 8u;
-    const unsigned line = height == 480 ? y : y >> 1;
-    const unsigned text_row = line / cell_height;
-    const unsigned glyph_line = line % cell_height;
-    const unsigned start = 0x8000u + (state->vram_offset << 1) + text_row * columns * 2u;
-    const uint8_t *font = height == 480 ? font_8x16 : font_8x8;
-    const bool cursor_row = pc_cursor_on_line(state, text_row, glyph_line, height);
+    unsigned cell_height = state->text_height;
+    unsigned rows = state->text_rows;
+    if ((cell_height != 8 && cell_height != 14 && cell_height != 16) || !rows) {
+        rows = 25;
+        cell_height = height == 480 ? 16 : 8;
+    }
+    unsigned line = cell_height * rows <= 200 ? y >> 1 : y;
+    unsigned text_row = line / cell_height;
+    if (text_row >= rows) {
+        PC_FN(fill)(output, width, origin, palette);
+        return;
+    }
+    unsigned glyph_line = line % cell_height;
+    unsigned start = 0x8000u + (state->vram_offset << 1) + text_row * columns * 2u;
+    const uint8_t *font = cell_height == 8 ? font_8x8 : font_8x16 + (cell_height == 14);
+    unsigned font_stride = cell_height == 8 ? 8 : 16;
+    const bool cursor_row = pc_cursor_on_line(state, text_row, glyph_line, cell_height == 8 ? 240 : 480);
     // Two pixels in each store, from the four pairs of the cell's two colors.
     // A row has long runs of one attribute, so the pairs are made again only when it changes.
     typedef struct { PC_PIXEL pixel[2]; } __attribute__((may_alias)) pair_t;
@@ -38,7 +48,7 @@ static inline __attribute__((always_inline)) void PC_FN(text_line)(
     for (unsigned column = 0; column < columns; ++column) {
         const uint8_t character = (uint8_t)pc_word(vram, start + column * 2u);
         const uint8_t attr = (uint8_t)pc_word(vram, start + column * 2u + 1u);
-        uint8_t glyph = font[(unsigned)character * cell_height + glyph_line];
+        uint8_t glyph = font[(unsigned)character * font_stride + glyph_line];
         if (state->blink_mask == 0x7fu && (attr & 0x80u) && state->cursor_phase)
             glyph = 0;
         if (cursor_row && column == state->cursor_x) glyph = 0xffu;

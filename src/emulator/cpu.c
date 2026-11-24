@@ -396,11 +396,30 @@ static uint32_t original_vectors[sizeof stub_vectors]; // segment:offset, as in 
 static const uint8_t xms_entry_code[] = {0xEB, 0x03, 0x90, 0x90, 0x90, 0x0F, 0xFF, XMS_ESCAPE, 0xCB};
 static bool bios_stubs_installed;
 
+// Install the real-mode video vector without taking ownership from a guest TSR.
+static void install_video_vector(void) {
+    uint32_t old = readdw86(0x40);
+    if (old == VGA_INT10_VECTOR) return;
+    uint32_t linear = (old >> 16) * 16 + (uint16_t)old;
+    if (linear < BIOS_START || linear >= HMA_START) return;
+    original_vectors[0] = old;
+    writedw86(0x40, VGA_INT10_VECTOR);
+    RAM[0x487] = 0x60;
+    RAM[0x488] = 0x09;
+    RAM[0x489] = 0x51;
+    RAM[0x48a] = 8; // VGA with color monitor
+    writedw86(0x1f * 4, VGA_FONT8 + 1024);
+    writedw86(0x43 * 4, VGA_FONT16);
+}
+
 static void install_bios_stubs(void) {
-    for (unsigned i = 0; i < sizeof stub_vectors; i++) {
+    install_video_vector();
+    RAM[0x410] &= ~0x30u; // EGA/VGA equipment code for INT 11h
+    for (unsigned i = 1; i < sizeof stub_vectors; i++) {
         const uint32_t vector = stub_vectors[i] * 4u, stub = BIOS_STUBS + i * 4;
         const uint32_t far_stub = 0xF0000000u | (stub - 0xF0000);
-        if (readdw86(vector) != far_stub) original_vectors[i] = readdw86(vector); // not again on a warm boot
+        uint32_t old = readdw86(vector);
+        if (old != far_stub) original_vectors[i] = old;
         writedw86(vector, far_stub);
         write86(stub, 0x0F);
         write86(stub + 1, 0xFF);
@@ -414,169 +433,7 @@ static void install_bios_stubs(void) {
 // The BIOS functions done in C. True if the call is done; false: the BIOS code at the vector runs.
 static __not_in_flash() bool bios_hook(uint8_t intnum) {
     switch (intnum) {
-        case 0x10: {
-            switch (CPU_AH) {
-                case 0x09:
-                case 0x0a:
-                    if (videomode >= 8 && videomode <= 0x13) {
-                        // TODO: char attr?
-                        tga_draw_char(CPU_AL, CURSOR_X, CURSOR_Y, 9);
-                        printf("%c", CPU_AL);
-                        return true;
-                    }
-                    break;
-                case 0x0f:
-                    if (videomode < 8) break;
-                    CPU_AL = videomode;
-                    CPU_AH = 80;
-                    CPU_BH = 0;
-                    return true;
-                case 0x00:
-                    // http://www.techhelpmanual.com/114-video_modes.html
-                    // http://www.techhelpmanual.com/89-video_memory_layouts.html
-
-                    videomode = CPU_AL & 0x7F;
-
-                    FIRST_RAM_PAGE[0x449] = CPU_AL;
-                    FIRST_RAM_PAGE[0x44A] = videomode <= 2 || (videomode >= 0x8 && videomode <= 0xa) ? 40 : 80;
-                    FIRST_RAM_PAGE[0x44B] = 0;
-                    FIRST_RAM_PAGE[0x484] = (25 - 1);
-
-                    if ((CPU_AL & 0x80) == 0x00) {
-                        memset(VIDEORAM, 0x0, sizeof(VIDEORAM));
-                    }
-                    vga_set_cpu_page_offset(0);
-                    vga_planar_mode = 0;
-                    tga_offset = 0x8000;
-                    crt_controller[0x13] = videomode == 0x0D ? 0x14 : 0x28; // line width in words; the BIOS does not set it
-                    if (videomode == 0x13) { // the BIOS programs only the CGA registers; mode X games change these
-                        static const uint8_t mode13_crtc[25] = {
-                            0x5F, 0x4F, 0x50, 0x82, 0x54, 0x80, 0xBF, 0x1F, 0x00, 0x41, 0x00, 0x00, 0x00,
-                            0x00, 0x00, 0x00, 0x9C, 0x8E, 0x8F, 0x28, 0x40, 0x96, 0xB9, 0xA3, 0xFF,
-                        };
-                        memcpy(crt_controller, mode13_crtc, sizeof mode13_crtc);
-                    }
-                    break;
-                case 0x05: /* Select Active Page */ {
-                    if (CPU_AL >= 0x80) {
-                        uint8_t CRTCPU = FIRST_RAM_PAGE[BIOS_CRTCPU_PAGE];
-                        switch (CPU_AL) {
-                            case 0x80: /* read CRT/CPU page registers */
-                                CPU_BH = CRTCPU & 7;
-                                CPU_BL = (CRTCPU >> 3) & 7;
-                                break;
-                            case 0x81: /* set CPU page register to value in BL */
-                                CRTCPU = (CRTCPU & 0xc7) | ((CPU_BL & 7) << 3);
-                                break;
-                            case 0x82: /* set CRT page register to value in BH */
-                                CRTCPU = (CRTCPU & 0xf8) | (CPU_BH & 7);
-                                break;
-                            case 0x83: /* set CRT and CPU page registers in BH and BL */
-                                CRTCPU = (CRTCPU & 0xc0) | (CPU_BH & 7) | ((CPU_BL & 7) << 3);
-                                break;
-                        }
-                        tga_portout(0x3df, CRTCPU);
-                        FIRST_RAM_PAGE[BIOS_CRTCPU_PAGE] = CRTCPU;
-                        return true;
-                    }
-
-                    break;
-                }
-                case 0x10:
-                    switch (CPU_AL) {
-                        case 0x00: {
-                            uint8_t color_index = CPU_BL & 0xF;
-                            uint8_t color_byte = CPU_BH;
-
-                            const uint16_t r = (((color_byte >> 2) & 1) << 1) + (color_byte >> 5 & 1);
-                            const uint16_t g = (((color_byte >> 1) & 1) << 1) + (color_byte >> 4 & 1);
-                            const uint16_t b = (((color_byte >> 0) & 1) << 1) + (color_byte >> 3 & 1);
-
-                            if (videomode <= 0xa) {
-                                tga_palette_map[color_index] = color_byte;
-                            } else {
-                                vga_palette[color_index] = rgb((r * 85), (g * 85), (b * 85));
-#if PICO_ON_DEVICE
-                                graphics_set_palette(color_index, vga_palette[color_index]);
-#endif
-                            }
-                            return true;
-                        }
-                        case 0x02: {
-                            uint32_t memloc = CPU_ES * 16 + CPU_DX;
-                            for (int color_index = 0; color_index < 16; color_index++) {
-                                uint8_t color_byte = read86(memloc++);
-                                const uint8_t r = (((color_byte >> 2) & 1) << 1) + (color_byte >> 5 & 1);
-                                const uint8_t g = (((color_byte >> 1) & 1) << 1) + (color_byte >> 4 & 1);
-                                const uint8_t b = (((color_byte >> 0) & 1) << 1) + (color_byte >> 3 & 1);
-
-                                vga_palette[color_index] = rgb((r * 85), (g * 85), (b * 85));
-#if PICO_ON_DEVICE
-                                graphics_set_palette(color_index, vga_palette[color_index]);
-#endif
-                            }
-                            // TODO: Overscan/Border 17th color
-                            return true;
-                        }
-                        case 0x03: {
-                            cga_blinking = CPU_BL ? 0x7F : 0xFF;
-                            cga_blinking_lock = !CPU_BL;
-                            //printf("[CPU] INT BL 0x%02x\r\n", CPU_BL);
-                            return true;
-                        }
-                        case 0x10: {
-                            // Set One DAC Color Register
-                            vga_palette[CPU_BL] = rgb((CPU_DH & 63) << 2, (CPU_CH & 63) << 2,
-                                                      (CPU_CL & 63) << 2);
-#if PICO_ON_DEVICE
-                            graphics_set_palette(CPU_BL, vga_palette[CPU_BL]);
-#endif
-                            return true;
-                        }
-                        case 0x12: {
-                            // set block of DAC color registers               VGA
-                            uint32_t memloc = CPU_ES * 16 + CPU_DX;
-                            for (int color_index = CPU_BX; color_index < ((CPU_BX + CPU_CX) & 0xFF); color_index++) {
-                                vga_palette[color_index] = rgb((read86(memloc++) << 2), (read86(memloc++) << 2),
-                                                               (read86(memloc++) << 2));
-#if PICO_ON_DEVICE
-                                graphics_set_palette(color_index, vga_palette[color_index]);
-#endif
-                            }
-                            return true;
-                        }
-                        case 0x15: {
-                            // Read One DAC Color Register
-                            const uint8_t color_index = CPU_BX & 0xFF;
-                            CPU_CL = ((vga_palette[color_index] >> 2)) & 63;
-                            CPU_CH = ((vga_palette[color_index] >> 10)) & 63;
-                            CPU_DH = ((vga_palette[color_index] >> 18)) & 63;
-                            return true;
-                        }
-                        case 0x17: {
-                            // Read a Block of DAC Color Registers
-                            uint32_t memloc = CPU_ES * 16 + CPU_DX;
-                            for (int color_index = CPU_BX; color_index < ((CPU_BX + CPU_CX) & 0xFF); color_index++) {
-                                write86(memloc++, ((vga_palette[color_index] >> 2)) & 63);
-                                write86(memloc++, ((vga_palette[color_index] >> 10)) & 63);
-                                write86(memloc++, ((vga_palette[color_index] >> 18)) & 63);
-                            }
-                            return true;
-                        }
-                    }
-                    //printf("Unhandled 10h CPU_AL: 0x%x\r\n", CPU_AL);
-                    break;
-                case 0x1A: //get display combination code (ps, vga/mcga)
-                    CPU_AL = 0x1A;
-                    if (ega_vga_enabled) {
-                        CPU_BL = 0x08;
-                    } else {
-                        CPU_BL = 0x05; // MCGA
-                    }
-                    return true;
-            }
-            break;
-        }
+        case 0x10: return vga_bios_int10();
         case 0x13:
             diskhandler();
             return true;
@@ -680,7 +537,13 @@ static __not_in_flash() bool bios_hook(uint8_t intnum) {
 
 // 0F FF n in a stub. False (#UD, as on a 386) before the stubs exist, or in protected mode.
 static __not_in_flash() bool bios_escape(uint8_t i) {
-    if (!bios_stubs_installed || protected_mode || i > XMS_ESCAPE) return false;
+    if (protected_mode) return false;
+    if (CPU_CS == 0xc000 && ip == 6 && i == XMS_ESCAPE + 1) {
+        install_video_vector();
+        return true;
+    }
+    bool video_entry = CPU_CS == 0xc000 && ip == 0x43 && i == 0;
+    if ((!bios_stubs_installed && !video_entry) || i > XMS_ESCAPE) return false;
     if (i == XMS_ESCAPE) {
         xms_handler();
         return true;
@@ -702,7 +565,11 @@ __not_in_flash() void intcall86(uint8_t intnum) {
         protected_interrupt(intnum, NO_ERROR_CODE, true);
         return;
     }
-    if (bios_hook(intnum)) return;
+    if (intnum == 0x10) {
+        uint32_t vector = getmem16(0, 0x42) * 16u + getmem16(0, 0x40);
+        if ((vector == VBIOS_START + 0x40 || (vector >= BIOS_START && vector < HMA_START)) && bios_hook(intnum))
+            return;
+    } else if (bios_hook(intnum)) return;
     push(makeflagsword());
     push(CPU_CS);
     push(ip);
@@ -1245,6 +1112,7 @@ static __not_in_flash() void op_0f() {
 
 void reset86() {
     reset_protected_mode();
+    bios_stubs_installed = false;
     CPU_DX = 0x2308; // Intel386 SX, stepping C-E (data sheet 240187, Table 5.7)
     load_segment(regcs, 0xFFFF);
     load_segment(regss, 0x0000);
@@ -1255,6 +1123,10 @@ void reset86() {
     memset(UMB, 0, sizeof(UMB));
     memset(EXTENDED, 0, XMS_START - HMA_START); // the HMA
     xms_reset();
+    RAM[0x487] = 0x60; // 256 KiB VGA
+    RAM[0x488] = 0x09; // color display, 400-line text
+    RAM[0x489] = 0x51;
+    RAM[0x48a] = 8; // default VGA color display combination
     ip = 0x0000;
     i8237_reset();
     vga_init();

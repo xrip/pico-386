@@ -57,6 +57,12 @@ extern "C" void _putchar(char character) {
 }
 
 static inline void renderer() {
+    const uint32_t *display_palette = vga_display_palette();
+    unsigned cell_height = RAM[0x485];
+    if (cell_height != 8 && cell_height != 14 && cell_height != 16) cell_height = 16;
+    unsigned text_rows = RAM[0x484] ? RAM[0x484] + 1u : 25u;
+    const unsigned font_stride = cell_height == 8 ? 8 : 16;
+    const uint8_t *text_font = cell_height == 8 ? font_8x8 : font_8x16 + (cell_height == 14);
     static uint8_t v = 0;
     if (v != videomode) {
         printf("videomode %x %x\n", videomode, v);
@@ -78,17 +84,20 @@ static inline void renderer() {
         uint32_t *pixels = SCREEN + y * 640;
 
         if (y < 400)
-            switch (videomode) {
+            switch (videomode == 7 && !hercules_mode ? 2 : videomode) {
                 case 0x00:
                 case 0x01: {
-                    uint16_t y_div_16 = y / 16; // Precompute y / 16
-                    uint8_t glyph_line = (y / 2) % 8; // Precompute y % 8 for font lookup
+                    unsigned line = cell_height * text_rows <= 200 ? (unsigned)y / 2 : (unsigned)y;
+                    unsigned y_div_16 = line / cell_height;
+                    if (y_div_16 >= text_rows) { memset(pixels, 0, 640 * sizeof(*pixels)); break; }
+                    unsigned glyph_line = line % cell_height;
                     // Calculate screen position
-                    uint8_t *text_buffer_line = vidramptr + y_div_16 * 80;
+                    const unsigned text_start = 2 * vram_offset + y_div_16 * 80;
 
                     for (int column = 0; column < 40; column++) {
-                        uint8_t glyph_pixels = font_8x8[*text_buffer_line++ * 8 + glyph_line]; // Glyph row from font
-                        uint8_t color = *text_buffer_line++; // Color attribute
+                        const uint32_t *cell = &VIDEORAM[0x8000 + ((text_start + 2 * column) & 0x7fff)];
+                        uint8_t glyph_pixels = text_font[(uint8_t)cell[0] * font_stride + glyph_line]; // Glyph row from font
+                        uint8_t color = cell[1]; // Color attribute
 
                         // Cursor blinking check
                         uint8_t cursor_active = cursor_blink_state &&
@@ -116,16 +125,20 @@ static inline void renderer() {
                 }
                 case 0x02:
                 case 0x03: {
-                    uint16_t y_div_16 = y / 16; // Precompute y / 16
-                    uint8_t glyph_line = y % 16; // Precompute y % 8 for font lookup
+                    unsigned line = cell_height * text_rows <= 200 ? (unsigned)y / 2 : (unsigned)y;
+                    unsigned y_div_16 = line / cell_height;
+                    if (y_div_16 >= text_rows) { memset(pixels, 0, 640 * sizeof(*pixels)); break; }
+                    unsigned glyph_line = line % cell_height;
 
                     // Calculate screen position
-                    uint8_t *text_row = vidramptr + y_div_16 * 160;
+                    const unsigned text_start = 2 * vram_offset + y_div_16 * 160;
+                    const unsigned text_base = videomode == 7 ? 0 : 0x8000;
                     for (uint8_t column = 0; column < 80; column++) {
                         // Access vidram and font data once per character
-                        uint8_t *charcode = text_row + column * 2; // Character code
-                        uint8_t glyph_row = font_8x16[*charcode * 16 + glyph_line]; // Glyph row from font
-                        uint8_t color = *++charcode; // Color attribute
+                        const uint32_t *cell = &VIDEORAM[text_base + ((text_start + 2 * column) & 0x7fff)];
+                        uint8_t charcode = cell[0];
+                        uint8_t glyph_row = text_font[charcode * font_stride + glyph_line]; // Glyph row from font
+                        uint8_t color = cell[1]; // Color attribute
 
                         // Cursor blinking check
                         uint8_t cursor_active =
@@ -295,7 +308,7 @@ static inline void renderer() {
                                                 | (((plane1 >> bit) & 1) << 1)
                                                 | (((plane2 >> bit) & 1) << 2)
                                                 | (((plane3 >> bit) & 1) << 3);
-                            uint32_t color = vga_palette[color_index];
+                            uint32_t color = display_palette[color_index];
                             *pixels++ = color;
                             *pixels++ = color;
                         }
@@ -317,7 +330,7 @@ static inline void renderer() {
                                                 | (((plane1 >> bit) & 1) << 1)
                                                 | (((plane2 >> bit) & 1) << 2)
                                                 | (((plane3 >> bit) & 1) << 3);
-                            *pixels++ = vga_palette[color_index];
+                            *pixels++ = display_palette[color_index];
                         }
                     }
                     break;
@@ -337,7 +350,7 @@ static inline void renderer() {
                                                 | (((plane1 >> bit) & 1) << 1)
                                                 | (((plane2 >> bit) & 1) << 2)
                                                 | (((plane3 >> bit) & 1) << 3);
-                            *pixels++ = vga_palette[color_index];
+                            *pixels++ = display_palette[color_index];
                         }
                     }
                     break;
@@ -375,7 +388,7 @@ static inline void renderer() {
                                                 | (((plane1 >> bit) & 1) << 1)
                                                 | (((plane2 >> bit) & 1) << 2)
                                                 | (((plane3 >> bit) & 1) << 3);
-                            *pixels++ = vga_palette[color_index];
+                            *pixels++ = display_palette[color_index];
                         }
                     }
                     break;
@@ -386,13 +399,13 @@ static inline void renderer() {
                             uint32_t ptr = x + (y >> 1) * 320;
                             ptr = (ptr >> 2) + (x & 3) * vga_plane_size;
                             ptr += vram_offset;
-                            uint32_t color = vga_palette[VIDEORAM[ptr]];
+                            uint32_t color = display_palette[VIDEORAM[ptr]];
                             *pixels++ = *pixels++ = color;
                         }
                     } else {
                         uint8_t *vga_row = VIDEORAM + (y >> 1) * 320;
                         for (int x = 0; x < 320; x++) {
-                            uint32_t color = vga_palette[*vga_row++];
+                            uint32_t color = display_palette[*vga_row++];
                             *pixels++ = *pixels++ = color;
                         }
                     }

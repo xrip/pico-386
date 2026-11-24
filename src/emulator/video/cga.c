@@ -4,7 +4,8 @@
 #include "emulator/emulator.h"
 
 uint8_t cga_intensity = 0, cga_colorset = 0, cga_foreground_color = 15, cga_blinking = 0xFF, cga_blinking_lock = 0, cga_hires = 0;
-static uint8_t hercules_mode = 0, hercules_enable = 0;
+uint8_t hercules_mode;
+static uint8_t hercules_enable;
 volatile uint8_t port3DA = 8;
 
 const uint32_t cga_palette[16] = {

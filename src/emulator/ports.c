@@ -251,6 +251,8 @@ __not_in_flash() void portout(uint16_t portnum, uint16_t value) {
         case 0x3CE:
         case 0x3C0:
         case 0x3C5:
+        case 0x3C2:
+        case 0x3C3:
         case 0x3C6:
         case 0x3C7:
         case 0x3C8:
@@ -462,6 +464,9 @@ __not_in_flash() uint16_t portin(uint16_t portnum) {
         case 0x3C0:
         case 0x3C1:
         case 0x3C2:
+        case 0x3C3:
+        case 0x3C6:
+        case 0x3CC:
         case 0x3C4:
         case 0x3C5:
         case 0x3C7:
@@ -508,10 +513,25 @@ __not_in_flash() uint16_t portin16(uint16_t portnum) {
 }
 
 
+// The BIOS bell rings on the audio clock, leaving the guest CPU free to run.
+static uint8_t bell_requested;
+void bios_bell(void) { __atomic_store_n(&bell_requested, 1, __ATOMIC_RELAXED); }
+
+static int16_t bios_bell_sample(void) {
+    static unsigned remaining;
+    if (__atomic_load_n(&bell_requested, __ATOMIC_RELAXED)) {
+        __atomic_store_n(&bell_requested, 0, __ATOMIC_RELAXED);
+        remaining = SOUND_FREQUENCY / 18;
+    }
+    if (!remaining) return 0;
+    const unsigned period = SOUND_FREQUENCY * 0x528u / PIT_FREQUENCY;
+    return --remaining % period < period / 2 ? 4096 : -4096;
+}
+
 void get_sound_sample(const int16_t other_sample, int16_t *samples) {
     OPL_calc_buffer_linear(emu8950_opl, (int32_t *)samples, 1);
 
-    samples[1] = samples[0] += (int32_t)(speaker_sample() + other_sample + covox_sample + sn76489_sample()
+    samples[1] = samples[0] += (int32_t)(speaker_sample() + bios_bell_sample() + other_sample + covox_sample + sn76489_sample()
 #if !defined(MIDI_GM_DLS)
             + midi_sample()
 #endif
