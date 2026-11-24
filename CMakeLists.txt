@@ -148,7 +148,7 @@ else ()
     target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections --function-sections)
 
     pico_set_program_name(${PROJECT_NAME} "Pico-386")
-    pico_set_program_version(${PROJECT_NAME} "1.1.0")
+    pico_set_program_version(${PROJECT_NAME} "4.0.0")
     pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
 
     # =========================
