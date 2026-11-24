@@ -1,5 +1,7 @@
 # 50.4 MHz flash trial
 
+> Historical board record. These observations apply to the listed image and test conditions; local build outputs may not exist in a clean checkout.
+
 At the user's request, a separate trial increases flash from 45.82 to
 50.4 MHz while keeping CPU 504 MHz, HSTX 126 MHz, PSRAM 126 MHz, and VREG
 1.60 V. The flash clock rises 10%; this is not a measured emulator speed gain.

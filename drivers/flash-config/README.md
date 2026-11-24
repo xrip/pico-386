@@ -32,10 +32,10 @@ rate, but does not raise it. Explicit raw timing overrides remain explicit.
 
 All code in the command session runs in SRAM with IRQs off. It exits XIP once
 and uses QMI direct mode throughout the transaction. It does not call
-`flash_do_cmd()`, which would replay boot2 after each command. The SDK's
-W25Q080 boot2 can rewrite both status registers and is therefore unsuitable
-for this sequence. The first embedded generic-03h boot test failed before
-USB startup on the test board, so no embedded boot2 runs on M2P2.
+`flash_do_cmd()`; one direct-mode session spans the full transaction. The main
+firmware sets `PICO_EMBED_XIP_SETUP=0`, so the RP2350 ROM detects the initial
+flash read mode. A separate generic-03h startup experiment failed before USB
+startup on the tested board and was not adopted.
 
 On WEL or verification failure, the function returns false with serial `03h`
 XIP restored. On a 100 ms busy timeout it enters ROM BOOTSEL; it never returns

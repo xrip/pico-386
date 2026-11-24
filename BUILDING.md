@@ -1,8 +1,25 @@
 # Building the Project
 
 There are two kinds of build:
-- the **RP2350 firmware** for the M2P2 board: HSTX HDMI video, HDMI audio and 8 MB onboard QMI PSRAM. This is the only supported board configuration;
-- the **host build** (Windows/Linux), used for development and the tests.
+- the **RP2350 firmware** for the M2P2 board: HSTX HDMI or VGA output, 8 MB onboard QMI PSRAM, HDMI audio for HDMI, and detected I2S or PWM audio for VGA. This is the only supported board configuration;
+- the **host build** for Windows or Linux, used for development and tests. The Linux target currently has a compile error noted below.
+
+## Latest build checks
+
+Fresh checks on 2026-11-24:
+
+| Target or check | Result |
+|---|---|
+| Win32 Release build from a fresh temp directory | Pass |
+| RP2350 M2P2 Release build from a fresh temp directory | Pass |
+| Linux host build with GCC 13.3 | CMake generation passes; compilation fails in `src/linux-main.cpp` (for example, line 443 assigns `uint32_t *VIDEORAM` to `uint8_t *`). |
+| `tests/flash-startup` build | Pass |
+| `tests/irq-entry-stress` timer-only build (`TEST_HSTX=OFF`) | Pass |
+| `tests/irq-entry-stress` HSTX build (`TEST_HSTX=ON`) | Link fails with undefined `hstx_audio_island`, `hstx_audio_init`, and `port3DA`. |
+| Flash timing and QE host tests | Pass |
+
+These results cover fresh builds and host tests only. They do not establish
+board stability beyond the separate dated records in `docs/board-records/`.
 
 ## Prerequisites
 
@@ -49,7 +66,7 @@ Notes on the M2P2 firmware:
 - **PSRAM:** the default QMI clock is `CPU_CLOCK / PSRAM_CLOCK_DIVIDER` (500 MHz / 4 = 125 MHz). At least 8 MB onboard QMI PSRAM is required; the firmware stops at boot without it. Conventional RAM, UMB, HMA and XMS all live in PSRAM.
 - **SRAM:** code, lookup tables and palettes use normal SRAM. Scratch X and Y are reserved for separate 4 KB core stacks, with hardware stack-limit checks. The linker rejects other scratch allocations.
 - **OPL2:** the OPL2 assembly runs from normal SRAM (2 KB). Both flash and SRAM versions have faulted during HDMI interrupts at 504 MHz; the SRAM change is not a complete fix. See the [OPL2 board record](docs/board-records/hstx-opl-sram.md).
-- **Flash:** every boot checks the flash Quad Enable bit before overclocking. If the bit is clear, the startup code sets and verifies it while running from RAM; if it is already set, no status-register write is made. The RP2350 ROM selects the initial flash read mode, then startup selects quad reads before PSRAM or core 1 starts. See [flash setup](drivers/flash-config/README.md). The flash timing keeps the ROM boot profile's physical intervals and maximum rate when SYS changes. On the tested board, 50 MHz stock flash becomes about 45.45 MHz at 500 MHz SYS.
+- **Flash:** every boot checks the flash Quad Enable bit before overclocking. If the bit is clear, the startup code sets and verifies it while running from RAM; if it is already set, no status-register write is made. The RP2350 ROM selects the initial flash read mode, then startup selects quad reads before PSRAM or core 1 starts. See [flash setup](drivers/flash-config/README.md). Flash timing keeps the saved boot profile's physical intervals and rate limit when SYS changes. On the measured 150 MHz / 50 MHz boot profile, the derived rate at 500 MHz SYS is about 45.45 MHz; other boot profiles can give a different rate.
 - **16 MB flash:** the SDK settings and the linker script use 16 MB flash; the last 4 KB is reserved for CMOS. This requires a board with 16 MB physical flash.
 - Earlier 504 MHz checks are in the [historical board record](docs/board-records/hstx-504-board.md). See [VIDEO_MODES.md](VIDEO_MODES.md) for layouts.
 
@@ -94,7 +111,7 @@ The files go to `bin/host/<build type>/`. `MIDI_WINMM` and `MIDI_GM_DLS` cannot 
 ## Technical Notes
 
 ### Boot Process
-The firmware uses its own boot stage 2 (`slower_boot2`), built from the SDK default file. On M2P2 the ROM finds a working read mode; `main()` then enables QE and sets the quad-read timing from RAM before raising the system clock.
+The main firmware sets `PICO_EMBED_XIP_SETUP=0`. The RP2350 ROM detects the initial flash read mode; `main()` then enables QE and sets quad-read timing from RAM before raising the system clock. This note describes the XIP setup setting, not which boot stage runs.
 
 ### `PICO_BOARD` Variable
 The `m2p2` preset sets `PICO_BOARD=pico2` and `PICO_PLATFORM=rp2350-arm-s` before the SDK is loaded.

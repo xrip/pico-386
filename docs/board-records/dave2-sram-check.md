@@ -1,5 +1,7 @@
 # Dave 2 fault and scratch-bank audit
 
+> Historical board record. These observations apply to the listed images and test conditions; local build outputs may not exist in a clean checkout.
+
 The user reported another hang after the EGA page/stride change. This was
 not just a guest waiting in DOS: core 1 entered HardFault and stopped HDMI
 while core 0 continued running.

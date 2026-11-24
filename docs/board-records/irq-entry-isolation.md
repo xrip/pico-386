@@ -1,5 +1,7 @@
 # Interrupt-entry fault isolation
 
+> Historical board record. These observations apply to the listed images and test conditions; build folders below are ignored local evidence.
+
 The full firmware still faulted after moving OPL assembly to SRAM. The next
 test removes the emulator, OPL, SD card, and software PSRAM accesses.
 **The first tests did not hold the external PSRAM chip-select high.** They
@@ -69,7 +71,7 @@ when raising SYS to 504 MHz, giving M0_TIMING 6381970b and 45.82 MHz flash. It
 keeps ROM pad settings, holds PSRAM CS inactive before QE setup, and masks
 interrupts while QMI is in direct mode. Timing updates wait for idle QMI and
 perform an uncached read with barriers before the clock change. Host timing
-and QE tests pass; these changes still need a full board/game check.
+and QE tests passed before the later board check in this record.
 
 The application candidate was then flashed and reached DOS. USB confirmed
 SYS 504 MHz, HSTX 126 MHz, USB 48 MHz, M0_TIMING 6381970b, M1_TIMING 607e8504,

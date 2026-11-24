@@ -1,5 +1,7 @@
 # HSTX and OPL2 board test
 
+> Historical board record. These observations apply to the listed images and test conditions; local build outputs may not exist in a clean checkout.
+
 The Frank/M2P2 board showed a black screen in Mode 13h games with OPL2.
 Core 0 and USB remained live; core 1, which runs audio and HDMI interrupts,
 had entered HardFault. Text mode and a game without OPL2 worked.
@@ -53,7 +55,7 @@ The matching ELF/UF2 files, captures, and earlier fault logs are local ignored
 artifacts in `build/mode13-exclusive-live`, `build/mode13-252-live`, and
 `build/mode13-opl-sram-live` at the repository root.
 
-These are historical diagnostic builds. The normal output path is
+These are historical diagnostic builds. At the time, the normal output path was
 `bin/rp2350-arm-s/Release/m2p2-286-F100-P166-504MHz-HDMI-HSTX-PWM.uf2`,
 but that file can be replaced by later builds. Use the hashes and local
 snapshots above for this experiment. See [later isolation work](irq-entry-isolation.md).

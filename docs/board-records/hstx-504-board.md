@@ -1,5 +1,7 @@
 # 504 MHz HSTX-only board check
 
+> Historical board record. These observations apply to the listed image and test conditions; local build outputs may not exist in a clean checkout.
+
 The fixed firmware was loaded on the user's Frank/M2P2 board and observed
 through the USB3.0 UHD HDMI capture device.
 

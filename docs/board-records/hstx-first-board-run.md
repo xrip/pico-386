@@ -1,9 +1,11 @@
 # First HSTX source-lock run
 
-The parent session flashed and checked firmware
+> Historical board record. These observations apply to the listed image and test conditions; raw tables and build outputs may be local files.
+
+The test session flashed and checked firmware
 `EC53FF9C97AE4F112B8E6DEC81E61164D3B28EBAE5B6604BD13932CCFFAFEEDC`
 on the same board on COM3, treated as M2P2/RP2350. The complete 61-case serial
-table is `hstx-first-board-run.csv`, copied from
+table is the local file `hstx-first-board-run.csv`, copied from
 `build/graphics-perf-hstx-first.csv` after the final mode 118 row was captured.
 Matching ignored binaries are `hstx-first-EC53FF9C.uf2` and `.elf`.
 

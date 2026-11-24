@@ -17,7 +17,7 @@ DOS gets a keyboard, mouse, disk drives, color graphics, and stereo sound. Dune 
 - **One firmware for two screens.** The board checks for HDMI or VGA at boot. HDMI carries picture and sound on one cable. With VGA, the board checks for I2S or PWM sound.
 - **DOS disks as files.** Put floppy images in `/XT/fdd0.img` and `/XT/fdd1.img`, and hard disk images in `/XT/hdd.img` and `/XT/hdd2.img`. The SD driver uses DMA for disk transfers.
 - **Room for larger programs.** The CPU has 32-bit instructions, protected mode, paging, and virtual 8086 mode. DOS programs can use XMS memory.
-- **A desktop build for tests.** The same emulator core runs on Windows and Linux. Pico-386 has its own desktop display code. The desktop build is independent of the Pico SDK.
+- **Host builds for development.** Windows and Linux use the same emulator core with desktop display code. A clean Windows Release build passes. A fresh Linux build with GCC 13.3 configures but fails during compilation in `src/linux-main.cpp`; see the current check results in [BUILDING.md](BUILDING.md).
 
 ## Hardware seen by DOS
 

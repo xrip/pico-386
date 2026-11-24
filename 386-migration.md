@@ -1,31 +1,32 @@
 # Plan: upgrade the emulator CPU from 286 to 386SX (fast, not exact), RP2350 only
 
+> Historical migration plan and progress log. Step notes and measurements below describe specific builds and tests. For the current target and build commands, see [README.md](README.md) and [BUILDING.md](BUILDING.md).
+
 ## Context
 
-Our CPU is a 286 in real mode only. Protected mode is not there, and nothing above 1 MB + 64 KB is mapped. The user wants a 386SX that runs:
+At the start of this work, the CPU was a 286 in real mode only. The original goal was a 386SX that could run:
 - DOS extender games (DOS/4GW, PMODE/W, DOS32A, CWSDPMI);
 - EMM386;
 - Windows 3.1 in 386 enhanced mode.
 
-So the job needs protected mode, 32-bit operations, paging and V86 mode.
+The migration added 32-bit operations, protected mode, paging, V86 mode, and 386 task switching. DOS extender and Windows 3.1 support remains incomplete or unverified; see the step notes below.
 
 **Rules:**
 - Speed over exactness. YAGNI, KISS, DRY.
 - One 386 core, with no CPU switch.
-- **Targets: one firmware configuration, RP2350 M2P2 with HSTX HDMI, HDMI audio and 8 MB onboard QMI PSRAM, plus the host builds.** RP2040, VGA, TFT, NTSC, PIO HDMI, PWM/I2S/hardware sound, SPI PSRAM and the swap file are removed.
+- **Targets:** one RP2350 M2P2 firmware configuration with 8 MB onboard QMI PSRAM, plus Windows and Linux host builds. The firmware selects HSTX HDMI or VGA at boot or from `config.286`; HDMI uses HDMI audio, while VGA can use I2S or PWM audio. RP2040 and the older TFT, NTSC, PIO video, SPI PSRAM, and swap-file paths are not supported by the top-level build.
 - We write the code ourselves from the Intel documents in `docs/`, so the MIT license stays. We do not read the PCulator, 86Box or Bochs source while writing; their programs may be used only as black boxes for comparing results. Note: I have already seen parts of PCulator in the earlier check.
 - The old branch `origin/386-exp` is not used.
 
-## Documents: stored in the repo as text, committed
+## Reference documents (tracked)
 
-Step 0 downloads them, converts them to UTF-8 text, and commits them. All sources below were checked to be online and readable.
+The documents below are tracked in this checkout. See [docs/README.md](docs/README.md) for source links and test data.
 
-| File in repo | What | Source | Text quality |
+| Local path | What | Source | Text quality |
 |---|---|---|---|
-| `docs/intel/i386-prm-1986.txt` | Intel 80386 Programmer's Reference Manual, 1986 (230985) | `386INTEL.TXT` in http://cd.textfiles.com/freedom/CODE/TEXT/386INTEL.ZIP (cp437, convert to UTF-8) | Typed text, 878 KB, 20,874 lines, tables in ASCII (checked: Table 9-7 error codes reads clean) |
+| `docs/intel/i386-prm-1986.txt` | Intel 80386 Programmer's Reference Manual, 1986 (230985) | `386INTEL.TXT` in http://cd.textfiles.com/freedom/CODE/TEXT/386INTEL.ZIP (cp437, convert to UTF-8) | Typed text, 878 KB, 20,854 lines, tables in ASCII (checked: Table 9-7 error codes reads clean) |
 | `docs/intel/240187-008_386SX_datasheet.pdf` + `.txt` | Intel386 SX Microprocessor data sheet, 1995 | https://media.digikey.com/pdf/Data%20Sheets/Intel%20PDFs/Intel386%20SX.pdf | Digital text layer (Acrobat Distiller, not a scan), 102 pages; `.txt` made with `pypdf` in a temp venv, then checked by eye |
 | `docs/specs/xms30.txt` | eXtended Memory Specification 3.0 (lock 0Ch, move 0Bh, functions 88h/89h) | https://www.phatcode.net/res/219/files/xms30.txt | Plain text, 48 KB |
-| `docs/README.md` | One line per file: order number, source URL, which parts we use | — | — |
 
 Parts of the manual we use:
 - 5 (segments, paging);
@@ -44,7 +45,9 @@ From the data sheet we use what is different from a 386DX: the 24-bit address (1
 - SingleStepTests/80386 (real mode, MOO format, ~576 MB) and SingleStepTests/80286;
 - the test386.asm ROM.
 
-## Limits we design for (RP2350 M2P2 firmware)
+## Historical resource snapshot (RP2350 M2P2 firmware)
+
+These figures record earlier migration builds; use the current build output for present memory use.
 
 - **SRAM:** 364,424 B of 512 KB in use (369,720 B with GM.DLS). VIDEORAM is 256 KB of it, and `exec86` is 24.6 KB. About 145 KB is free for new code and data.
 - **PSRAM:** 8 MB, of which 7.19 MB is in use:
@@ -62,7 +65,9 @@ From the data sheet we use what is different from a 386DX: the 24-bit address (1
 - No new checks on every memory access (see memory "No general checks in hot paths").
 - New 386 code starts in flash, and moves to SRAM only after profiling shows it is hot.
 
-## Design in short
+## Early design notes
+
+This section records the design before later steps below. Some limits listed here were changed or implemented later.
 
 - **Segment registers**: each has a selector plus a cached base (32-bit), limit, D/B bit and access byte.
   - A real-mode load sets base = sel << 4 and keeps the limit, so "unreal mode" works for free.
@@ -102,16 +107,15 @@ From the data sheet we use what is different from a 386DX: the 24-bit address (1
   - alignment check, debug traps, the prefetch queue, cycle timing, and undefined flags.
   - In V86 mode, the IOPL-sensitive instructions do fault: CLI, STI, PUSHF, POPF, INT n and IRET.
 
-## Steps
+## Migration step log
 
-Each step is one or more commits on branch `cpu386`, with a `/yagni` review. Each step must keep the Win32 and RP2350 (M2P2) builds working.
+These entries record the intended order and results for specific builds. They are not a current test report.
 
-0. **Documents, one configuration, base line.**
-   - Download and convert the documents and write `docs/README.md` (table above), then commit.
-   - **One configuration**: everything except RP2350 M2P2 + HSTX HDMI + HDMI audio + QMI PSRAM is removed (RP2040, swap/virtual memory, SPI PSRAM, VGA, TFT, NTSC, PIO HDMI, PWM/I2S/hardware sound, M1P2 pins, the launcher layout). The memory functions now have one backend (`_ob`).
-   - Add a host test runner `tests/sst_test.c` with its own small MOO reader (the format is simple chunks, see github.com/dbalsom/moo), and a host speed check `tests/cpu_bench.c`. Both use `tests/cpu_host.h`: the CPU alone with flat 16 MB memory.
-   - Write down the pass count for SingleStepTests/80286 on the current CPU.
-   - Write down the speed on host (`cpu_bench`) and of one fixed DOS benchmark on the M2P2 board.
+0. **Documents, initial firmware scope, and baseline.** Completed in the migration log.
+   - The Intel/XMS documents were converted or added and committed; see [docs/README.md](docs/README.md).
+   - The initial cleanup narrowed firmware to RP2350 M2P2 with HDMI. It removed RP2040, swap/virtual memory, SPI PSRAM, VGA, TFT, NTSC, PIO HDMI, PWM/I2S sound, M1P2 pins, and the launcher layout. The current firmware scope above later superseded the HDMI-only part by adding HDMI/VGA output selection and VGA audio. The memory functions use one backend (`_ob`).
+   - Added `tests/sst_test.c` and `tests/cpu_bench.c`; both use `tests/cpu_host.h` to test the CPU with flat 16 MB memory.
+   - Recorded the SingleStepTests/80286 pass count and host/board speed results below.
 1. **Segment descriptor cache, real mode only.** Done:
    - each segment register has a cached base (`segment_base[]`); every load goes through `load_segment()`; `getmem*`/`putmem*` and `useseg` take a base. Limit and access rights wait for step 4, a 32-bit EIP for step 2 (YAGNI);
    - nothing from the old 32-bit attempts is kept: the `CPU_386_EXTENDED_OPS` stub, the unused 32-bit helpers and macros, the AC/VIF/VIP/ID flag fields, FS/GS and the 64h/65h prefixes are gone;
@@ -154,12 +158,12 @@ Each step is one or more commits on branch `cpu386`, with a `/yagni` review. Eac
    - Gate still open: Windows 3.1 in 386 enhanced mode with a DOS box; `MEM` with UMBs and games under EMM386 on the board.
 7. **Hardware task switch.** Done, because CWSDPMI needs it: JMP/CALL to a TSS or task gate, task gates in the IDT (with the error code), IRET with NT. Only the 386 TSS; a 286 TSS gives a printf and #GP. test386 in the 128 KB build passes the 386 TSS part of test 22 and stops at its 286 TSS part. SMSW into a 32-bit register gives all of CR0 (test 22 checks it).
    - Open: `DOOM32DJ.EXE` with CWSDPR0 runs into the BIOS Print Screen routine (INT 05h in real mode, about 100 times, CS = 000Ch); not known yet if this build works on other PCs.
-8. **Speed pass on the M2P2 board.**
+ 8. **Speed pass on the M2P2 board.** Planned; no result is recorded here.
    - Profile.
    - Move only the measured hot 386 code to SRAM.
    - Add a fast code-fetch pointer for the current page if fetch through the TLB costs a lot.
 
-## Files to change
+## Original file plan (historical)
 
 - `docs/intel/`, `docs/specs/`, `docs/README.md`: new, committed.
 - `CMakeLists.txt`: one firmware configuration (step 0, done).

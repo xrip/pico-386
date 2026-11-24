@@ -1,6 +1,8 @@
 # HSTX source locks: Mode X check
 
-The parent session flashed
+> Historical board record. These observations apply to the listed image and test conditions; raw tables and build outputs may be local files.
+
+The test session flashed
 `CB1E91F22B729DA754191145A2D7E9B1F97D83AE07475C1E95BDB21ED6F95193`
 and captured the complete 61-case table in `hstx-mode-x-check.csv` (original
 capture: `build/graphics-perf-hstx-final.csv`). Ignored matching binaries are

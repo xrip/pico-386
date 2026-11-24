@@ -1,5 +1,7 @@
 # 500 MHz with independent HSTX clock
 
+> Historical board record. These observations apply to the listed image and test conditions; local build outputs may not exist in a clean checkout.
+
 The user requested CPU 500 MHz with HSTX on PLL_USB, then requested the
 merged HDMI-audio output. The build keeps VREG at 1.60 V and HSTX at 126 MHz.
 USB and ADC clocks are stopped. Scratch banks remain dedicated to guarded

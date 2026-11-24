@@ -1,7 +1,8 @@
 # PC video modes
 
-The output is HSTX HDMI on the RP2350. PC mode readers keep the old layouts
-from `519a857001220a54ed0c9224be1d741a84b362a1`.
+The RP2350 firmware selects HSTX HDMI or VGA. The PC mode readers share these
+source layouts; the output sizing below describes the HDMI path. The VGA path
+uses the same emulated PC modes with a different output format.
 
 PC VRAM is 65,536 **32-bit words**. CGA, Tandy, text, and linear VGA bytes live
 in the low byte of each word. EGA planes and Mode X use all four bytes. Mode
