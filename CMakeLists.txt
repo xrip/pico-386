@@ -40,7 +40,7 @@ set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${PICO_PLATFORM}/${CMAKE_BUILD_TYPE}")
 # =========================
 # SOURCE FILES
 # =========================
-file(GLOB_RECURSE SRC "src/emulator/*.cpp" "src/emulator/*.c" "src/emu8950/*.c" "src/emu8950/*.cpp")
+file(GLOB_RECURSE SRC CONFIGURE_DEPENDS "src/emulator/*.cpp" "src/emulator/*.c" "src/emu8950/*.c" "src/emu8950/*.cpp")
 
 # =========================
 # MIDI OPTIONS (default: the sine/noise engine)

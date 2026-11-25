@@ -123,10 +123,7 @@ const uint32_t *vga_display_palette(void);
 void vga_set_dac_color(unsigned index, uint32_t color);
 
 // System BIOS graphics services
-bool vga_bios_int10(void);
-bool cga_bios_int10(void);
-void cga_bios_set_mode(bool clear);
-void cga_bios_text_font(unsigned height);
+bool video_bios_int10(void);
 void bios_bell(void);
 
 // TGA

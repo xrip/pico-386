@@ -433,7 +433,7 @@ static void install_bios_stubs(void) {
 // The BIOS functions done in C. True if the call is done; false: the BIOS code at the vector runs.
 static __not_in_flash() bool bios_hook(uint8_t intnum) {
     switch (intnum) {
-        case 0x10: return vga_bios_int10();
+        case 0x10: return video_bios_int10();
         case 0x13:
             diskhandler();
             return true;
