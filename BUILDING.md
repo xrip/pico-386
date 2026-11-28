@@ -70,6 +70,25 @@ Notes on the M2P2 firmware:
 - **16 MB flash:** the SDK settings and the linker script use 16 MB flash; the last 4 KB is reserved for CMOS. This requires a board with 16 MB physical flash.
 - Earlier 504 MHz checks are in the [historical board record](docs/board-records/hstx-504-board.md). See [VIDEO_MODES.md](VIDEO_MODES.md) for layouts.
 
+### Optional NTSC composite output next to HSTX
+
+`NTSC_TV=ON` adds NTSC composite on GPIO22, sent from a PIO state machine, while
+HSTX gives HDMI or VGA as usual. The PIO loop needs an exact 157.5 Mbit/s bit
+rate, so SYS runs at 495 MHz (PLL_SYS with REFDIV 2) and PSRAM at 495 / 4 MHz.
+
+```sh
+cmake -S . -B build/m2p2-ntsc -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=pico2 -DPICO_PLATFORM=rp2350-arm-s -DNTSC_TV=ON
+cmake --build build/m2p2-ntsc
+```
+
+Output: `bin/rp2350-arm-s/Release/m2p2-386-C495-P123MHz-NTSC.uf2`. The driver
+comes from `rp2040-ntsc-tv-ntsc-pio` (commit c447169). 80-column text and the
+two-color 640-pixel modes use 640 luminance samples; other modes use 320 color
+pixels. CGA composite modes (0x74, 0x76) send the CGA 640-dot bit stream, one
+sample a dot, and the TV makes the artifact colors. The CLion profile
+`RP2350 NTSC` builds the same firmware. The NTSC line IRQ is DMA_IRQ_0 on core 1, under the HSTX IRQ. Built on
+2026-11-28; not yet checked on a board.
+
 ### Optional GM.DLS MIDI on RP2350 and Win32
 
 `MIDI_GM_DLS=ON` selects the GM.DLS wavetable engine.

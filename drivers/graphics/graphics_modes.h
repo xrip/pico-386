@@ -119,6 +119,10 @@ void graphics_source_render_line(unsigned row, unsigned width, unsigned height,
 
 void graphics_source_render_line16(unsigned row, unsigned width, unsigned height,
                                    uint16_t *output, const uint16_t *palette);
+// CGA composite modes as the 640-dot bit stream a CGA sends: 0 or the
+// foreground index for each of 640 samples. NTSC makes the artifact colors.
+void graphics_source_render_cga_bits16(unsigned row, unsigned height,
+                                       uint16_t *output, const uint16_t *palette);
 // One complete 32-bit palette entry per logical pixel. HSTX supplies two
 // equal BGR555 halfwords per entry to double low-resolution pixels in DMA.
 void graphics_source_render_line32(unsigned row, unsigned width, unsigned height,

@@ -8,6 +8,9 @@
 #include <hardware/dma.h>
 #include <hardware/sync.h>
 #include <pico.h>
+#if defined(NTSC_TV)
+#include <ntsc-composite.h>
+#endif
 
 
 #define HSTX_INITIAL_FRAMEBUFFER NULL
@@ -146,6 +149,9 @@ void hdmi_hstx_graphics_init(void) {
     if (!hstx_video_start()) {
         panic("HSTX start failed");
     }
+#if defined(NTSC_TV)
+    ntsc_composite_init();
+#endif
     started = true;
 }
 
@@ -168,6 +174,9 @@ void graphics_set_offset(int x, int y) {
 
 void graphics_set_palette(uint8_t index, uint32_t color) {
     color = graphics_pc_palette_color(index, color);
+#if defined(NTSC_TV)
+    ntsc_composite_set_palette(index, color);
+#endif
     if (vga) {
         pwm_palette[index] = hstx_rgb888_to_vga(color);
         return;

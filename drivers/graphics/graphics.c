@@ -18,7 +18,8 @@ enum {
 };
 
 #define GRAPHICS_HSTX_SYSTEM_CLOCK_KHZ (CPU_CLOCK * 1000u)
-_Static_assert(GRAPHICS_HSTX_SYSTEM_CLOCK_KHZ == 500000u, "HSTX runs with a 500 MHz system clock");
+_Static_assert(GRAPHICS_HSTX_SYSTEM_CLOCK_KHZ == 500000u || GRAPHICS_HSTX_SYSTEM_CLOCK_KHZ == 495000u,
+               "HSTX runs with a 500 MHz system clock, or 495 MHz for PIO NTSC");
 
 static bool graphics_pll_is_frequency(PLL pll, uint32_t frequency_hz) {
     const uint32_t cs = pll->cs;
@@ -115,7 +116,17 @@ void graphics_prepare_clock(void) {
     vreg_disable_voltage_limit();
     vreg_set_voltage(VREG_VOLTAGE_1_60);
     sleep_ms(10);
+#if CPU_CLOCK == 495 // 12 MHz / REFDIV 2 * 165 / 2; set_sys_clock_khz() has only REFDIV 1
+    graphics_stop_peripheral_clock(clk_peri); // PERI follows SYS from boot
+    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLK_REF, 0u, XOSC_HZ);
+    pll_init(pll_sys, 2u, 990000000u, 2u, 1u);
+    clock_configure_undivided(
+        clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX,
+        CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
+        GRAPHICS_HSTX_SYSTEM_CLOCK_KHZ * 1000u);
+#else
     set_sys_clock_khz(GRAPHICS_HSTX_SYSTEM_CLOCK_KHZ, true);
+#endif
 
     graphics_stop_peripheral_clock(clk_peri);
 

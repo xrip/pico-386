@@ -218,9 +218,9 @@ static inline __attribute__((always_inline)) void PC_FN(render_line)(
     }
 }
 
-static inline __attribute__((always_inline)) void PC_FN(render)(
-        unsigned row, unsigned width, unsigned height, PC_PIXEL *indices, const PC_PALETTE *palette) {
-    const graphics_source_state_t source = source_snapshot();
+static inline __attribute__((always_inline)) void PC_FN(render_source)(
+        const graphics_source_state_t source, unsigned row, unsigned width, unsigned height,
+        PC_PIXEL *indices, const PC_PALETTE *palette) {
     const enum graphics_mode_t mode = source.mode;
     const uint32_t *vram = (const uint32_t *)source.buffer;
     const int shift_x = source.shift_x;
@@ -247,4 +247,9 @@ static inline __attribute__((always_inline)) void PC_FN(render)(
         memmove(indices, indices - shift, (width + shift) * sizeof(*indices));
         PC_FN(fill)(indices + width + shift, (unsigned)-shift, indices, palette);
     }
+}
+
+static inline __attribute__((always_inline)) void PC_FN(render)(
+        unsigned row, unsigned width, unsigned height, PC_PIXEL *indices, const PC_PALETTE *palette) {
+    PC_FN(render_source)(source_snapshot(), row, width, height, indices, palette);
 }

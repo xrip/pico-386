@@ -368,6 +368,13 @@ void __time_critical_func(graphics_source_render_line16)(
         pc_mapped16_render(row, width, height, output, palette);
 }
 
+void __time_critical_func(graphics_source_render_cga_bits16)(
+        unsigned row, unsigned height, uint16_t *output, const uint16_t *palette) {
+    graphics_source_state_t source = source_snapshot();
+    source.mode = CGA_640x200x2;
+    pc_mapped16_render_source(source, row, 640, height, output, palette);
+}
+
 #define PC_PIXEL uint32_t
 #define PC_PALETTE uint32_t
 #define PC_FN(name) pc_mapped32_##name
