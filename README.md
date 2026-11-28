@@ -15,6 +15,7 @@ DOS gets a keyboard, mouse, disk drives, color graphics, and stereo sound. Dune 
 ## What you get
 
 - **One firmware for two screens.** The board checks for HDMI or VGA at boot. HDMI carries picture and sound on one cable. With VGA, the board checks for I2S or PWM sound.
+- **A TV as a second screen.** The NTSC firmware (`m2p2-386-C495-P123MHz-NTSC.uf2`) also sends composite video on GPIO22 while HDMI or VGA runs. It runs at 495 MHz. CGA composite games send the CGA dot pattern, so the TV makes their artifact colors.
 - **DOS disks as files.** Put floppy images in `/XT/fdd0.img` and `/XT/fdd1.img`, and hard disk images in `/XT/hdd.img` and `/XT/hdd2.img`. The SD driver uses DMA for disk transfers.
 - **Room for larger programs.** The CPU has 32-bit instructions, protected mode, paging, and virtual 8086 mode. DOS programs can use XMS memory.
 - **Host builds for development.** Windows and Linux use the same emulator core with desktop display code. A clean Windows Release build passes. A fresh Linux build with GCC 13.3 configures but fails during compilation in `src/linux-main.cpp`; see the current check results in [BUILDING.md](BUILDING.md).
@@ -40,6 +41,8 @@ cmake --preset m2p2
 cmake --build --preset m2p2
 ```
 
+For the HSTX + NTSC composite firmware, see [NTSC composite output](BUILDING.md#optional-ntsc-composite-output-next-to-hstx).
+
 ## Thanks to the x86 emulation community
 
 Our work on PC peripherals draws on many open-source emulators and chip datasheets. Over the years we tried ideas from so many places that we can no longer trace every part to a single source. The credits below name the sources we can still identify.
@@ -64,6 +67,7 @@ Pico-386 project code is copyright © 2026 xrip under the [MIT License](LICENSE)
 | I2S audio driver | © 2022 Vincent Mistler | [MIT](drivers/audio/audio.c) |
 | HDMI packet code from pico_hdmi and frank-quake2 | fliperama86, rh1tech and DnCraptor | [Source credit](drivers/hstx-vga-hdmi-audio/hstx_video.c), [Unlicense](drivers/hstx-vga-hdmi-audio/LICENSE.pico_hdmi) |
 | VGA detection | wbcbz7 | [MIT source credit](drivers/hstx-vga-hdmi-audio/hstx_video.c) |
+| NTSC composite signal generation | © 2024 KenKen, © 2026 xrip; idea by lovyan03 | [Non-commercial terms](drivers/ntsc-composite/ntsc-composite.c) |
 | Embedded printf | © 2014–2019 Marco Paland | [MIT](src/printf/printf.c) |
 | Linux findfirst | © 2011 Mathieu Turcotte | [GPL-3.0-or-later](findfirst/findfirst.c) |
 
